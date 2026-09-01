@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateCompensationBreakdown, getInsuranceCoverage, generateReferenceNumber } from './compute.js';
+import { calculateCompensationBreakdown, getInsuranceCoverage, generateReferenceNumber, resolveOptionalBenefit } from './compute.js';
 
 describe('calculateCompensationBreakdown', () => {
   it('splits a 12.5 LPA CTC into fixed/variable/statutory components', () => {
@@ -69,5 +69,32 @@ describe('generateReferenceNumber', () => {
     const firstSeq = parseInt(first.split('-')[1], 10);
     const secondSeq = parseInt(second.split('-')[1], 10);
     expect(secondSeq).toBe(firstSeq + 1);
+  });
+});
+
+describe('resolveOptionalBenefit', () => {
+  it('returns null when mode is manual and amount is blank', () => {
+    const result = resolveOptionalBenefit({ mode: 'manual', manualAmount: null, ctcLakhs: 12, formulaFn: () => 0 });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when mode is manual and amount is zero', () => {
+    const result = resolveOptionalBenefit({ mode: 'manual', manualAmount: 0, ctcLakhs: 12, formulaFn: () => 0 });
+    expect(result).toBeNull();
+  });
+
+  it('returns the manual amount when mode is manual and amount is positive', () => {
+    const result = resolveOptionalBenefit({ mode: 'manual', manualAmount: 100000, ctcLakhs: 12, formulaFn: () => 0 });
+    expect(result).toBe(100000);
+  });
+
+  it('calls formulaFn and returns its result when mode is auto', () => {
+    const result = resolveOptionalBenefit({ mode: 'auto', manualAmount: null, ctcLakhs: 12, formulaFn: () => 42000 });
+    expect(result).toBe(42000);
+  });
+
+  it('propagates the formula error when mode is auto and formulaFn throws', () => {
+    const throwing = () => { throw new Error('formula not yet configured'); };
+    expect(() => resolveOptionalBenefit({ mode: 'auto', manualAmount: null, ctcLakhs: 12, formulaFn: throwing })).toThrow(/formula not yet configured/i);
   });
 });
