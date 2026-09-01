@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateCompensationBreakdown } from './compute.js';
+import { calculateCompensationBreakdown, getInsuranceCoverage, generateReferenceNumber } from './compute.js';
 
 describe('calculateCompensationBreakdown', () => {
   it('splits a 12.5 LPA CTC into fixed/variable/statutory components', () => {
@@ -36,5 +36,38 @@ describe('calculateCompensationBreakdown', () => {
 
   it('rejects a CTC below the 1 LPA minimum', () => {
     expect(() => calculateCompensationBreakdown(0.5)).toThrow(/ctc/i);
+  });
+});
+
+describe('getInsuranceCoverage', () => {
+  it('returns the default tier just below the threshold', () => {
+    const result = getInsuranceCoverage(9.99);
+    expect(result).toEqual({ medical: 300000, personalAccident: 500000, term: 1000000 });
+  });
+
+  it('returns the enhanced tier exactly at the threshold', () => {
+    const result = getInsuranceCoverage(10);
+    expect(result).toEqual({ medical: 500000, personalAccident: 1000000, term: 2000000 });
+  });
+
+  it('returns the enhanced tier above the threshold', () => {
+    const result = getInsuranceCoverage(10.01);
+    expect(result).toEqual({ medical: 500000, personalAccident: 1000000, term: 2000000 });
+  });
+});
+
+describe('generateReferenceNumber', () => {
+  it('formats as GANIT/HR/APPT/{year}-{4-digit sequence}', () => {
+    const ref = generateReferenceNumber();
+    const year = new Date().getFullYear();
+    expect(ref).toMatch(new RegExp(`^GANIT/HR/APPT/${year}-\\d{4}$`));
+  });
+
+  it('increments the sequence on each call within the same run', () => {
+    const first = generateReferenceNumber();
+    const second = generateReferenceNumber();
+    const firstSeq = parseInt(first.split('-')[1], 10);
+    const secondSeq = parseInt(second.split('-')[1], 10);
+    expect(secondSeq).toBe(firstSeq + 1);
   });
 });

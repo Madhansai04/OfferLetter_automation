@@ -51,3 +51,21 @@ export function getInsuranceCoverage(ctcLakhs) {
     ? INSURANCE_TIERS.enhanced
     : INSURANCE_TIERS.default;
 }
+
+let sequenceCounter = 0;
+let sequenceYear = null;
+
+/**
+ * Generates GANIT/HR/APPT/{year}-{4-digit sequence}.
+ * The counter is in-memory only and resets to 1 on process restart or
+ * year rollover — acceptable for the MVP, which has no database.
+ */
+export function generateReferenceNumber() {
+  const year = new Date().getFullYear();
+  if (year !== sequenceYear) {
+    sequenceYear = year;
+    sequenceCounter = 0;
+  }
+  sequenceCounter += 1;
+  return `GANIT/HR/APPT/${year}-${String(sequenceCounter).padStart(4, '0')}`;
+}
