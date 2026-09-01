@@ -69,3 +69,18 @@ export function generateReferenceNumber() {
   sequenceCounter += 1;
   return `GANIT/HR/APPT/${year}-${String(sequenceCounter).padStart(4, '0')}`;
 }
+
+/**
+ * Resolves the yearly amount for an optional benefit (Retention Pay or
+ * Relocation Bonus). Returns null when the line should be omitted from
+ * the offer letter entirely (manual mode with no/zero amount).
+ */
+export function resolveOptionalBenefit({ mode, manualAmount, ctcLakhs, formulaFn }) {
+  if (mode === 'auto') {
+    return formulaFn(ctcLakhs);
+  }
+  if (!manualAmount) {
+    return null;
+  }
+  return manualAmount;
+}
