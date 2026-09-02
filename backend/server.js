@@ -10,9 +10,11 @@ import { generatePdf } from './lib/generatePdf.js';
 import { generateDocx } from './lib/generateDocx.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
 
 export const app = express();
 app.use(express.json());
+app.use(express.static(frontendDistPath));
 
 app.post('/api/preview', (req, res) => {
   const parsed = OfferLetterInputSchema.safeParse(req.body);
@@ -55,9 +57,13 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
+
 const PORT = process.env.PORT || 3001;
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`Offer letter backend listening on port ${PORT}`);
+    console.log(`Offer letter app running at http://localhost:${PORT}`);
   });
 }
