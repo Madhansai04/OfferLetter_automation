@@ -1,28 +1,25 @@
 {
-  "name": "offerletter_automation",
-  "version": "1.0.0",
+  "name": "ganit-offer-letter-generator",
   "private": true,
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
-  "scripts": {
-    "start": "node start.js",
-    "dev:backend": "npm run dev --prefix backend",
-    "dev:frontend": "npm run dev --prefix frontend",
-    "test:backend": "npm test --prefix backend"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Madhansai04/OfferLetter_automation.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "version": "0.0.0",
   "type": "module",
-  "bugs": {
-    "url": "https://github.com/Madhansai04/OfferLetter_automation/issues"
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
   },
-  "homepage": "https://github.com/Madhansai04/OfferLetter_automation#readme"
+  "dependencies": {
+    "docx": "^9.7.1",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "oxlint": "^1.79.0",
+    "vite": "^8.2.2"
+  }
 }
