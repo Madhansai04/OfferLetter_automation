@@ -1,8 +1,11 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { formatNumber, formatDate, numberToWords } from './formatters';
+import { formatNumber, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
 
 const WHITE = rgb(1, 1, 1);
 const BLACK = rgb(0.07, 0.07, 0.07);
+// The template prints the Ref and Date header line in grey (#a6a6a6);
+// redrawing them in black would stand out against the untouched design.
+const HEADER_GREY = rgb(0xa6 / 255, 0xa6 / 255, 0xa6 / 255);
 const PAD = 2; // extra margin so the white cover fully hides the original glyph edges
 
 /**
@@ -14,7 +17,21 @@ const PAD = 2; // extra margin so the white cover fully hides the original glyph
  * space instead of overlapping neighboring static text.
  */
 function buildPage1Fields(v) {
+  const today = new Date();
   return [
+    // "Ref: GANIT/HR/APPT/2026" and "Date: 25/08/2026" are baked into the
+    // template as single grey text runs, including their labels. Cover each
+    // whole run and redraw it with a live year and today's date.
+    {
+      x: 63.86, y: 676.42, width: 138.73, height: 12,
+      maxSize: 12, minSize: 8, color: HEADER_GREY,
+      text: `Ref: GANIT/HR/APPT/${today.getFullYear()}`
+    },
+    {
+      x: 441.46, y: 676.42, width: 88.07, height: 12,
+      maxSize: 12, minSize: 8, color: HEADER_GREY,
+      text: `Date: ${formatDateSlashes(today)}`
+    },
     { x: 69, y: 634, width: 33.8, height: 8, maxSize: 9, minSize: 6, text: v.name },
     { x: 180, y: 631, width: 34.7, height: 8, maxSize: 9, minSize: 6, text: v.email },
     { x: 435, y: 631, width: 49.4, height: 8, maxSize: 9, minSize: 6, text: v.phone },
@@ -23,7 +40,9 @@ function buildPage1Fields(v) {
     { x: 63.5, y: 582, width: 300, height: 8, maxSize: 8, minSize: 6, text: `Dear ${v.name},` },
     { x: 262, y: 535.5, width: 60, height: 8, maxSize: 9, minSize: 6, text: v.role },
     { x: 190, y: 520.6, width: 175, height: 7, maxSize: 9, minSize: 5.5, text: `${formatNumber(v.ctc * 100000)} (${numberToWords(Math.floor(v.ctc * 100000))})` },
-    { x: 448.5, y: 520.6, width: 60, height: 7, maxSize: 9, minSize: 6, text: formatDate(v.doj) },
+    // {{DOJ}} is the last item on its line, so it can run to the right
+    // margin (~538pt) — enough for the long "03 September 2026" form.
+    { x: 448.5, y: 520.6, width: 88, height: 7, maxSize: 9, minSize: 6, text: formatDateLong(v.doj) },
     { x: 72.5, y: 506.9, width: 60, height: 5.5, maxSize: 8, minSize: 5.5, text: v.posting }
   ];
 }
@@ -32,7 +51,7 @@ function buildPage4Fields(v, breakdown) {
   const b = breakdown;
   return [
     { x: 293.7, y: 696.0, width: 100, height: 7, maxSize: 9, minSize: 6, text: v.name },
-    { x: 291.5, y: 680.7, width: 70, height: 6, maxSize: 9, minSize: 6, text: formatDate(v.doj) },
+    { x: 291.5, y: 680.7, width: 100, height: 6, maxSize: 9, minSize: 6, text: formatDateLong(v.doj) },
     { x: 293.7, y: 668.4, width: 100, height: 7, maxSize: 9, minSize: 6, text: v.role },
     { x: 320.5, y: 638.4, width: 90, height: 6, maxSize: 9, minSize: 6, text: formatNumber(v.ctc * 100000) },
 
@@ -84,7 +103,13 @@ function drawCoveredField(page, field, font) {
     color: WHITE
   });
   const size = fitFontSize(font, field.text, field.width, field.maxSize, field.minSize);
-  page.drawText(field.text, { x: field.x, y: field.y, size, font, color: BLACK });
+  page.drawText(field.text, {
+    x: field.x,
+    y: field.y,
+    size,
+    font,
+    color: field.color ?? BLACK
+  });
 }
 
 /**

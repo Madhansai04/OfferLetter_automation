@@ -16,8 +16,9 @@ export function formatNumber(amount) {
   return Math.round(amount).toLocaleString('en-IN');
 }
 
-// Format date to DD-MM-YYYY
-export function formatDate(dateString) {
+// Slash form, matching how the template prints the offer letter's own date
+// in its header: "Date: 25/08/2026".
+export function formatDateSlashes(dateString) {
   if (!dateString) return '';
 
   const d = new Date(dateString);
@@ -25,7 +26,22 @@ export function formatDate(dateString) {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
 
-  return `${day}-${month}-${year}`;
+  return `${day}/${month}/${year}`;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+// Long form used for the date of joining, e.g. "03 September 2026".
+export function formatDateLong(dateString) {
+  if (!dateString) return '';
+
+  const d = new Date(dateString);
+  const day = String(d.getDate()).padStart(2, '0');
+
+  return `${day} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 // Convert number to Indian words (units, thousand, lakh, crore grouping)

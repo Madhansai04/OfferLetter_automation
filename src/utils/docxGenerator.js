@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType } from 'docx';
-import { formatCurrency, formatDate, numberToWords } from './formatters';
+import { formatCurrency, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
 
 function labeledRow(label, value) {
   return new TableRow({
@@ -46,13 +46,13 @@ export async function generateOfferDocx(formData, breakdown) {
 
   const children = [
     new Paragraph({ text: 'OFFER LETTER', heading: HeadingLevel.TITLE }),
-    new Paragraph(`Ref: GANIT/HR/APPT/${year}    Date: ${formatDate(new Date())}`),
+    new Paragraph(`Ref: GANIT/HR/APPT/${year}    Date: ${formatDateSlashes(new Date())}`),
     new Paragraph(''),
     new Paragraph(`Dear ${formData.name},`),
     new Paragraph(
       `We are pleased to offer you a full-time role as ${formData.role} at Ganit Business Solutions Pvt. Ltd. ` +
       `Your potential annual Compensation of ${formatCurrency(ctcAmount)} (${numberToWords(Math.floor(ctcAmount))}). ` +
-      `You will join Ganit on ${formatDate(formData.doj)} and your position is work from ${formData.posting} and not remote.`
+      `You will join Ganit on ${formatDateLong(formData.doj)} and your position is work from ${formData.posting} and not remote.`
     ),
     new Paragraph(''),
     new Paragraph({ text: 'Annexure 2 - Compensation Structure', heading: HeadingLevel.HEADING_1 }),
@@ -60,7 +60,7 @@ export async function generateOfferDocx(formData, breakdown) {
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
         labeledRow('Name', formData.name),
-        labeledRow('Date of Joining', formatDate(formData.doj)),
+        labeledRow('Date of Joining', formatDateLong(formData.doj)),
         labeledRow('Designation', formData.role),
         labeledRow('CTC (Per Annum)', formatCurrency(ctcAmount))
       ]

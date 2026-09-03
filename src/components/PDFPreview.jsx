@@ -1,5 +1,5 @@
 import CompensationTable from './CompensationTable';
-import { formatCurrency, numberToWords } from '../utils/formatters';
+import { formatCurrency, formatDateSlashes, formatDateLong, numberToWords } from '../utils/formatters';
 
 export default function PDFPreview({ formData, breakdown }) {
   if (!breakdown) return null;
@@ -12,7 +12,7 @@ export default function PDFPreview({ formData, breakdown }) {
         </div>
 
         <p><strong>Ref:</strong> GANIT/HR/APPT/{new Date().getFullYear()}</p>
-        <p><strong>Date:</strong> {new Date().toLocaleDateString('en-IN')}</p>
+        <p><strong>Date:</strong> {formatDateSlashes(new Date())}</p>
 
         <div className="preview-candidate-info">
           <p><strong>Name:</strong> {formData.name}</p>
@@ -25,6 +25,7 @@ export default function PDFPreview({ formData, breakdown }) {
         <p>
           <strong>Congratulations.</strong> We are pleased to offer you a full-time role as <strong>{formData.role}</strong>.
           Your annual Compensation of <strong>{formatCurrency(formData.ctc * 100000)}</strong> ({numberToWords(Math.floor(formData.ctc * 100000))}).
+          You will join Ganit on <strong>{formatDateLong(formData.doj)}</strong> and your position is work from <strong>{formData.posting}</strong>.
         </p>
       </div>
 
