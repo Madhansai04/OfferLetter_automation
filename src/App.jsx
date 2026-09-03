@@ -71,13 +71,13 @@ export default function App() {
     if (!formData.doj) return 'Date of joining is required';
     if (!formData.posting.trim()) return 'Posting location is required';
 
+    // Relocation is paid over and above the CTC, so it is not deducted here.
     const ctc = parseFloat(formData.ctc) * 100000;
     const deductions =
       (parseFloat(formData.variableAmount) || 0) +
-      (parseFloat(formData.retentionAmount) || 0) +
-      (parseFloat(formData.relocationAmount) || 0);
+      (parseFloat(formData.retentionAmount) || 0);
     if (deductions >= ctc) {
-      return 'Variable + retention + relocation must be less than the CTC';
+      return 'Variable pay + retention must be less than the CTC';
     }
 
     return '';

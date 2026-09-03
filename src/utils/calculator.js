@@ -17,8 +17,12 @@
 // The pool that gets split into salary components.
 // Workbook: H4 = SUM(H5:H7) => CTC = FixedSalary + Variable + Retention,
 // i.e. the split pool is CTC minus the "other components".
-function fixedSalaryPool(ctc, variable, retention, relocation) {
-  return ctc - variable - retention - relocation;
+//
+// Relocation bonus is deliberately excluded: it is paid over and above the
+// CTC rather than out of it, so it does not reduce what is available to
+// split across Basic/HRA/Conveyance/PF/Gratuity.
+function fixedSalaryPool(ctc, variable, retention) {
+  return ctc - variable - retention;
 }
 
 // Excel D11: IF(($D$8*12%)>=1800,1800,$D$8*12%) + IF($D$8>=15000,150,($D$8*1%))
@@ -95,7 +99,7 @@ export function calculateCTCBreakdown(
   relocationRupees = 0
 ) {
   const ctc = ctcLakhs * 100000;
-  const fixedPool = fixedSalaryPool(ctc, variableRupees, retentionRupees, relocationRupees);
+  const fixedPool = fixedSalaryPool(ctc, variableRupees, retentionRupees);
 
   const basicMonthly = solveBasicMonthly(fixedPool);
   const c = componentsFromBasic(basicMonthly);
@@ -142,11 +146,13 @@ export function calculateCTCBreakdown(
     totalCTC: ctc,
     totalMonthly: ctc / 12,
 
-    // Sanity check: components + other pay must reconcile to the CTC.
+    // Sanity check: the split components plus variable and retention must
+    // reconcile to the CTC. Relocation is excluded because it is paid over
+    // and above the CTC, not out of it.
     verification: {
       fixedPoolRequired: fixedPool,
       fixedPoolCalculated: c.totalAnnual,
-      reconciles: Math.abs((c.totalAnnual + variableRupees + retentionRupees + relocationRupees) - ctc) < 1
+      reconciles: Math.abs((c.totalAnnual + variableRupees + retentionRupees) - ctc) < 1
     }
   };
 }

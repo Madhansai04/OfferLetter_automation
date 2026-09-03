@@ -63,11 +63,34 @@ describe('PF formula boundaries', () => {
 });
 
 describe('pool deductions', () => {
-  it('subtracts variable, retention and relocation from the split pool', () => {
+  it('subtracts variable and retention from the split pool', () => {
     const r = calculateCTCBreakdown(6, 50000, 100000, 0);
     // CTC 6,00,000 - 50,000 variable - 1,00,000 retention = 4,50,000 pool
     expect(r.verification.fixedPoolRequired).toBe(450000);
     expect(r.fixed.total.yearly + r.statutory.total.yearly).toBeCloseTo(450000, 4);
+  });
+
+  it('does NOT subtract relocation — it is paid over and above the CTC', () => {
+    const withoutRelocation = calculateCTCBreakdown(6, 50000, 100000, 0);
+    const withRelocation = calculateCTCBreakdown(6, 50000, 100000, 200000);
+
+    // Adding a relocation bonus must not shrink the pool or change any
+    // salary component.
+    expect(withRelocation.verification.fixedPoolRequired).toBe(450000);
+    expect(withRelocation.fixed.basic.monthly).toBeCloseTo(withoutRelocation.fixed.basic.monthly, 6);
+    expect(withRelocation.fixed.total.yearly).toBeCloseTo(withoutRelocation.fixed.total.yearly, 6);
+    expect(withRelocation.statutory.total.yearly).toBeCloseTo(withoutRelocation.statutory.total.yearly, 6);
+
+    // It is still reported for the letter, just outside the CTC.
+    expect(withRelocation.optional.relocation.yearly).toBe(200000);
+    expect(withRelocation.optional.relocation.show).toBe(true);
+  });
+
+  it('reconciles components + variable + retention to CTC, relocation aside', () => {
+    const r = calculateCTCBreakdown(6, 50000, 100000, 200000);
+    expect(r.verification.reconciles).toBe(true);
+    expect(r.fixed.total.yearly + r.statutory.total.yearly + r.variable.yearly + r.optional.retention.yearly)
+      .toBeCloseTo(600000, 4);
   });
 
   it('flags retention and relocation only when non-zero', () => {
