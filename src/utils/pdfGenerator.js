@@ -88,6 +88,39 @@ function drawCoveredField(page, field, font) {
 }
 
 /**
+ * Works around a pdf-lib incompatibility with the template PDF.
+ *
+ * The template was saved as an incremental update (it carries Adobe C2PA
+ * "Content Credentials"), which left object 1 present twice: once at
+ * generation 0 and once at generation 1, with the trailer's /Root pointing
+ * at "1 1 R". pdf-lib's cross-reference writer emits a single slot per
+ * object number and always writes generation 0, so on save the /Root
+ * reference no longer resolves. Lenient viewers silently rebuild the xref
+ * and appear fine; strict readers such as Adobe Acrobat reject the file
+ * with "The root object is missing or invalid."
+ *
+ * Dropping the stale non-zero-generation objects and re-registering the
+ * catalog under a fresh generation-0 reference produces a file that parses
+ * cleanly without any xref reconstruction.
+ */
+function normalizeObjectGenerations(pdfDoc) {
+  const context = pdfDoc.context;
+
+  const staleRefs = [];
+  for (const [ref] of context.enumerateIndirectObjects()) {
+    if (ref.generationNumber !== 0) staleRefs.push(ref);
+  }
+  if (staleRefs.length === 0) return;
+
+  const catalog = pdfDoc.catalog;
+  for (const ref of staleRefs) context.delete(ref);
+
+  const catalogRef = context.nextRef();
+  context.assign(catalogRef, catalog);
+  context.trailerInfo.Root = catalogRef;
+}
+
+/**
  * Fills the real Ganit offer letter template PDF with the form's values,
  * preserving the original file's exact design, logo, and layout, and
  * triggers a browser download. Runs entirely client-side.
@@ -97,6 +130,7 @@ export async function generateOfferPDF(formData, breakdown) {
   const templateBytes = await fetch(templateUrl).then((res) => res.arrayBuffer());
 
   const pdfDoc = await PDFDocument.load(templateBytes);
+  normalizeObjectGenerations(pdfDoc);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   const pages = pdfDoc.getPages();
