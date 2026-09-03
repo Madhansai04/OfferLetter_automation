@@ -86,6 +86,45 @@ describe('pool deductions', () => {
     expect(withRelocation.optional.relocation.show).toBe(true);
   });
 
+  it('relocation changes nothing except its own line, at any amount', () => {
+    const none = calculateCTCBreakdown(12, 50000, 50000, 0);
+    const large = calculateCTCBreakdown(12, 50000, 50000, 500000);
+
+    // Every number the letter prints, other than the relocation line itself,
+    // must be identical whether or not a relocation bonus is offered.
+    const unaffected = (r) => ({
+      basicMonthly: r.fixed.basic.monthly,
+      basicYearly: r.fixed.basic.yearly,
+      hraMonthly: r.fixed.hra.monthly,
+      hraYearly: r.fixed.hra.yearly,
+      conveyanceMonthly: r.fixed.conveyance.monthly,
+      conveyanceYearly: r.fixed.conveyance.yearly,
+      totalFixedMonthly: r.fixed.total.monthly,
+      totalFixedYearly: r.fixed.total.yearly,
+      pfMonthly: r.statutory.pf.monthly,
+      pfYearly: r.statutory.pf.yearly,
+      gratuityMonthly: r.statutory.gratuity.monthly,
+      gratuityYearly: r.statutory.gratuity.yearly,
+      totalBenefitMonthly: r.statutory.total.monthly,
+      totalBenefitYearly: r.statutory.total.yearly,
+      variableYearly: r.variable.yearly,
+      retentionYearly: r.optional.retention.yearly,
+      totalCTC: r.totalCTC,
+      totalMonthly: r.totalMonthly,
+      pool: r.verification.fixedPoolRequired
+    });
+
+    expect(unaffected(large)).toEqual(unaffected(none));
+    expect(large.optional.relocation.yearly).toBe(500000);
+  });
+
+  it('never folds relocation into the CTC total', () => {
+    const r = calculateCTCBreakdown(12, 50000, 50000, 500000);
+    // The CTC stays exactly what was entered, regardless of relocation.
+    expect(r.totalCTC).toBe(1200000);
+    expect(r.totalMonthly).toBeCloseTo(100000, 6);
+  });
+
   it('reconciles components + variable + retention to CTC, relocation aside', () => {
     const r = calculateCTCBreakdown(6, 50000, 100000, 200000);
     expect(r.verification.reconciles).toBe(true);
