@@ -1,4 +1,7 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import {
+  PDFDocument, StandardFonts, rgb,
+  PDFRawStream, PDFDict, PDFName, decodePDFRawStream
+} from 'pdf-lib';
 import { formatNumber, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
 
 const WHITE = rgb(1, 1, 1);
@@ -112,6 +115,113 @@ function drawCoveredField(page, field, font) {
   });
 }
 
+/** Decodes a PDF hex string like <7b7b524f4c457d7d> to its characters. */
+function decodeHexString(hex) {
+  const clean = hex.replace(/[^0-9A-Fa-f]/g, '');
+  let out = '';
+  for (let i = 0; i + 1 < clean.length; i += 2) {
+    out += String.fromCharCode(parseInt(clean.substr(i, 2), 16));
+  }
+  return out;
+}
+
+/**
+ * Page-1 baseline of the "Ref: ... / Date: ..." header, which is drawn over
+ * with a live reference number and today's date. The template splits that
+ * line across dozens of text operators ("[(Ref)4(:)]TJ", "[(G)6(A)5(N)...]TJ"),
+ * so it cannot be matched by phrase — every text operator positioned on this
+ * baseline is removed instead.
+ */
+const REPLACED_HEADER_BASELINE_Y = 676.42;
+const BASELINE_TOLERANCE = 1.5;
+
+/**
+ * Deletes the template's {{PLACEHOLDER}} text from its content streams.
+ *
+ * Drawing a white rectangle over a placeholder hides it visually but leaves
+ * the characters in the PDF's text layer, so copying text out of the letter,
+ * reading it with a screen reader, or converting it to Word all surface the
+ * old tokens interleaved with the real values ("{J{aNnAeMDEo}e}").
+ *
+ * The placeholders appear in two encodings: most as literal strings such as
+ * "[({{NAME}})]TJ", and {{ROLE}} and {{POSTING}} as hex strings such as
+ * "[<7b7b524f4c457d7d>]TJ". Both forms are emptied here, keeping the text
+ * operator itself so the surrounding positioning and graphics state stay
+ * valid.
+ *
+ * Streams are written back uncompressed, which avoids pulling in a deflate
+ * dependency. That costs roughly 70KB per generated letter.
+ */
+function stripPlaceholderText(pdfDoc) {
+  const context = pdfDoc.context;
+
+  for (const page of pdfDoc.getPages()) {
+    const contents = page.node.Contents();
+    if (!contents) continue;
+
+    const refs = [];
+    if (contents.constructor?.name === 'PDFArray') {
+      for (let i = 0; i < contents.size(); i++) refs.push(contents.get(i));
+    } else {
+      refs.push(contents);
+    }
+
+    for (const ref of refs) {
+      const stream = context.lookup(ref);
+      if (!stream || stream.constructor?.name !== 'PDFRawStream') continue;
+
+      let source;
+      try {
+        source = decodePDFRawStream(stream).decode();
+      } catch {
+        continue; // unreadable stream — leave it untouched
+      }
+
+      const original = Array.from(source, (b) => String.fromCharCode(b)).join('');
+      const isPage1 = page === pdfDoc.getPages()[0];
+
+      // Walk the stream tracking the current text-matrix baseline, so text can
+      // be removed either by its content (placeholders) or by its position
+      // (the header line, which is split across too many operators to match).
+      let currentY = null;
+      const rewritten = original.replace(
+        /(?:[\d.-]+\s+){4}([\d.-]+)\s+([\d.-]+)\s+Tm|\[[^\]]*\]\s*TJ|\([^)]*\)\s*Tj/g,
+        (op, _tmX, tmY) => {
+          if (tmY !== undefined) {
+            currentY = parseFloat(tmY);
+            return op;
+          }
+
+          const onReplacedHeader =
+            isPage1 &&
+            currentY !== null &&
+            Math.abs(currentY - REPLACED_HEADER_BASELINE_Y) < BASELINE_TOLERANCE;
+
+          const hexStrings = op.match(/<[0-9A-Fa-f\s]+>/g);
+          if (hexStrings) {
+            const hasPlaceholder = hexStrings.some((h) => /[{}]/.test(decodeHexString(h)));
+            return hasPlaceholder || onReplacedHeader ? '[<>]TJ' : op;
+          }
+          return /[{}]/.test(op) || onReplacedHeader ? '[()]TJ' : op;
+        }
+      );
+      if (rewritten === original) continue;
+
+      const bytes = Uint8Array.from(rewritten, (c) => c.charCodeAt(0) & 0xff);
+      context.assign(
+        ref,
+        PDFRawStream.of(
+          PDFDict.fromMapWithContext(
+            new Map([[PDFName.of('Length'), context.obj(bytes.length)]]),
+            context
+          ),
+          bytes
+        )
+      );
+    }
+  }
+}
+
 /**
  * Works around a pdf-lib incompatibility with the template PDF.
  *
@@ -155,6 +265,7 @@ export async function generateOfferPDF(formData, breakdown) {
   const templateBytes = await fetch(templateUrl).then((res) => res.arrayBuffer());
 
   const pdfDoc = await PDFDocument.load(templateBytes);
+  stripPlaceholderText(pdfDoc);
   normalizeObjectGenerations(pdfDoc);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
