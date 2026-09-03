@@ -20,6 +20,20 @@ function compensationRow(label, monthly, yearly) {
   });
 }
 
+// For components quoted as a single annual amount (variable pay,
+// retention, relocation) rather than split monthly/yearly.
+function singleAmountRow(label, amount) {
+  return new TableRow({
+    children: [
+      new TableCell({ children: [new Paragraph(label)] }),
+      new TableCell({
+        columnSpan: 2,
+        children: [new Paragraph(formatCurrency(amount))]
+      })
+    ]
+  });
+}
+
 /**
  * Builds an editable .docx offer letter with the same content as the PDF
  * (candidate/offer details, compensation breakdown, optional retention and
@@ -66,7 +80,7 @@ export async function generateOfferDocx(formData, breakdown) {
         compensationRow('House Rent Allowance', breakdown.fixed.hra.monthly, breakdown.fixed.hra.yearly),
         compensationRow('Conveyance Allowance', breakdown.fixed.conveyance.monthly, breakdown.fixed.conveyance.yearly),
         compensationRow('Total Fixed Pay Component', breakdown.fixed.total.monthly, breakdown.fixed.total.yearly),
-        compensationRow('Variable Pay #', 0, breakdown.variable.yearly),
+        singleAmountRow('Variable Pay #', breakdown.variable.yearly),
         compensationRow('PF Employer Contribution', breakdown.statutory.pf.monthly, breakdown.statutory.pf.yearly),
         compensationRow('Gratuity Benefits', breakdown.statutory.gratuity.monthly, breakdown.statutory.gratuity.yearly),
         compensationRow('Total Benefit Component', breakdown.statutory.total.monthly, breakdown.statutory.total.yearly)

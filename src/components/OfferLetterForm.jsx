@@ -86,15 +86,10 @@ export default function OfferLetterForm({ formData, onChange }) {
         <FormField
           label="Posting Location *"
           name="posting"
-          type="select"
+          type="text"
+          placeholder="Chennai"
           value={formData.posting}
           onChange={onChange}
-          options={[
-            { value: '', label: 'Select...' },
-            { value: 'Client Office', label: 'Client Office' },
-            { value: 'Ganit Office', label: 'Ganit Office' },
-            { value: 'Hybrid', label: 'Hybrid' }
-          ]}
           required
         />
       </fieldset>

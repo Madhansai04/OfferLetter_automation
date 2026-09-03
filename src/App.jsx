@@ -69,7 +69,7 @@ export default function App() {
       return 'Variable pay is required (enter 0 if none)';
     }
     if (!formData.doj) return 'Date of joining is required';
-    if (!formData.posting) return 'Posting location is required';
+    if (!formData.posting.trim()) return 'Posting location is required';
 
     const ctc = parseFloat(formData.ctc) * 100000;
     const deductions =

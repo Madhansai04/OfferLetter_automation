@@ -46,10 +46,11 @@ export default function CompensationTable({ breakdown }) {
             <td colSpan="3"><strong>VARIABLE</strong></td>
           </tr>
 
+          {/* Variable, retention and relocation are single annual amounts,
+              not split monthly/yearly, so their value spans both columns. */}
           <tr>
             <td>Variable Pay</td>
-            <td>{formatCurrency(breakdown.variable.monthly)}</td>
-            <td>{formatCurrency(breakdown.variable.yearly)}</td>
+            <td colSpan="2">{formatCurrency(breakdown.variable.yearly)}</td>
           </tr>
 
           {breakdown.optional.retention.show && (
@@ -59,8 +60,7 @@ export default function CompensationTable({ breakdown }) {
               </tr>
               <tr className="optional-row">
                 <td><strong>Retention Pay *</strong></td>
-                <td><strong>{formatCurrency(breakdown.optional.retention.monthly)}</strong></td>
-                <td><strong>{formatCurrency(breakdown.optional.retention.yearly)}</strong></td>
+                <td colSpan="2"><strong>{formatCurrency(breakdown.optional.retention.yearly)}</strong></td>
               </tr>
             </>
           )}
@@ -68,8 +68,7 @@ export default function CompensationTable({ breakdown }) {
           {breakdown.optional.relocation.show && (
             <tr className="optional-row">
               <td><strong>Relocation Bonus **</strong></td>
-              <td><strong>{formatCurrency(breakdown.optional.relocation.monthly)}</strong></td>
-              <td><strong>{formatCurrency(breakdown.optional.relocation.yearly)}</strong></td>
+              <td colSpan="2"><strong>{formatCurrency(breakdown.optional.relocation.yearly)}</strong></td>
             </tr>
           )}
 
