@@ -81,6 +81,32 @@ describe('pool deductions', () => {
   });
 });
 
+describe('insurance tiers', () => {
+  const below = { medical: 300000, personalAccident: 1000000, term: 1000000 };
+  const atOrAbove = { medical: 500000, personalAccident: 1000000, term: 2000000 };
+
+  it('uses the lower tier below 10 LPA', () => {
+    expect(calculateCTCBreakdown(9, 50000, 0, 0).insurance).toEqual(below);
+  });
+
+  it('uses the lower tier just under the threshold', () => {
+    expect(calculateCTCBreakdown(9.99, 50000, 0, 0).insurance).toEqual(below);
+  });
+
+  it('uses the higher tier exactly at 10 LPA', () => {
+    expect(calculateCTCBreakdown(10, 50000, 0, 0).insurance).toEqual(atOrAbove);
+  });
+
+  it('uses the higher tier above 10 LPA', () => {
+    expect(calculateCTCBreakdown(12.5, 50000, 0, 0).insurance).toEqual(atOrAbove);
+  });
+
+  it('keeps personal accident cover identical across both tiers', () => {
+    expect(calculateCTCBreakdown(5, 50000, 0, 0).insurance.personalAccident)
+      .toBe(calculateCTCBreakdown(20, 50000, 0, 0).insurance.personalAccident);
+  });
+});
+
 describe('Annexure 2 grouping', () => {
   it('keeps PF and gratuity out of Total Fixed Pay Component', () => {
     const r = calculateCTCBreakdown(5, 50000, 0, 0);

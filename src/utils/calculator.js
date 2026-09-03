@@ -73,11 +73,12 @@ function solveBasicMonthly(fixedPool) {
   return (low + high) / 2;
 }
 
-// Insurance tiers. PLACEHOLDER for CTC < 10 LPA — the workbook does not
-// cover insurance; confirm the sub-10-LPA amounts with Ganit HR.
+// Insurance tiers, confirmed by Ganit HR.
+// Only medical and term differ between tiers; personal accident is the
+// same 10,00,000 either side of the threshold.
 const INSURANCE_TIERS = {
   thresholdLakhs: 10,
-  belowThreshold: { medical: 500000, personalAccident: 1000000, term: 2000000 },
+  belowThreshold: { medical: 300000, personalAccident: 1000000, term: 1000000 },
   atOrAboveThreshold: { medical: 500000, personalAccident: 1000000, term: 2000000 }
 };
 
