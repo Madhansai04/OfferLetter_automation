@@ -88,6 +88,12 @@ export default function CompensationTable({ breakdown }) {
             <td>{formatCurrency(breakdown.statutory.gratuity.monthly)}</td>
             <td>{formatCurrency(breakdown.statutory.gratuity.yearly)}</td>
           </tr>
+
+          <tr className="total-row">
+            <td><strong>Total Benefit Component</strong></td>
+            <td><strong>{formatCurrency(breakdown.statutory.total.monthly)}</strong></td>
+            <td><strong>{formatCurrency(breakdown.statutory.total.yearly)}</strong></td>
+          </tr>
         </tbody>
       </table>
 

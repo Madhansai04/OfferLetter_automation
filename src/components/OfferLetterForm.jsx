@@ -63,6 +63,18 @@ export default function OfferLetterForm({ formData, onChange }) {
         />
 
         <FormField
+          label="Variable Pay (₹) *"
+          name="variableAmount"
+          type="number"
+          placeholder="50000"
+          value={formData.variableAmount}
+          onChange={onChange}
+          step="1000"
+          min="0"
+          required
+        />
+
+        <FormField
           label="Date of Joining *"
           name="doj"
           type="date"
@@ -91,24 +103,24 @@ export default function OfferLetterForm({ formData, onChange }) {
         <legend>Optional Benefits</legend>
 
         <FormField
-          label="Retention Amount (Lakhs) - Leave blank if none"
+          label="Retention Amount (₹) - Leave blank if none"
           name="retentionAmount"
           type="number"
           placeholder="0"
           value={formData.retentionAmount}
           onChange={onChange}
-          step="0.1"
+          step="1000"
           min="0"
         />
 
         <FormField
-          label="Relocation Amount (Lakhs) - Leave blank if none"
+          label="Relocation Amount (₹) - Leave blank if none"
           name="relocationAmount"
           type="number"
           placeholder="0"
           value={formData.relocationAmount}
           onChange={onChange}
-          step="0.1"
+          step="1000"
           min="0"
         />
       </fieldset>

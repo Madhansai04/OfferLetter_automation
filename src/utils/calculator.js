@@ -1,89 +1,151 @@
 /**
- * COMPLETE CTC BREAKDOWN WITH:
- * - Fixed/Variable/Statutory split
- * - Conditional insurance based on CTC
- * - Optional benefits (Retention/Relocation)
+ * CTC BREAKDOWN — ported from "CTC Calculator Final 2.xlsm"
  *
- * PLACEHOLDER VALUES — pending real numbers from Ganit HR:
- * - CTC breakdown percentages (fixed/basic/hra/conveyance/variable/pf/gratuity)
- * - Insurance amounts for CTC < 10 LPA vs >= 10 LPA
- * Update the constants below once the real formula is provided.
+ * Verified against the workbook's own stored values (CTC 5,00,000 /
+ * Variable 50,000 / Retention 0) to full floating-point precision:
+ *
+ *   Basic monthly     17,334.859154929574
+ *   HRA monthly        8,667.429577464787   = Basic * 50%
+ *   Conveyance monthly 8,667.429577464787   = Basic * 50%
+ *   PF monthly         1,950
+ *   Gratuity monthly     880.2816901408449
+ *   Total fixed annual 4,50,000
+ *
+ * Excel cell references are noted against each formula.
  */
 
-const CTC_FORMULA = {
-  fixedPercent: 0.60,
-  basicPercentOfFixed: 0.50,
-  hraPercentOfFixed: 0.25,
-  conveyancePercentOfFixed: 0.25,
-  variablePercent: 0.04,
-  pfPercent: 0.12,
-  gratuityPercent: 0.04
-};
+// The pool that gets split into salary components.
+// Workbook: H4 = SUM(H5:H7) => CTC = FixedSalary + Variable + Retention,
+// i.e. the split pool is CTC minus the "other components".
+function fixedSalaryPool(ctc, variable, retention, relocation) {
+  return ctc - variable - retention - relocation;
+}
 
+// Excel D11: IF(($D$8*12%)>=1800,1800,$D$8*12%) + IF($D$8>=15000,150,($D$8*1%))
+function pfMonthlyFromBasic(basicMonthly) {
+  const capped = Math.min(basicMonthly * 0.12, 1800);
+  const additional = basicMonthly >= 15000 ? 150 : basicMonthly * 0.01;
+  return capped + additional;
+}
+
+// Excel D12: (SUM(D8:D10)+D11)*0.5*15/26/12
+// i.e. (Basic + HRA + Conveyance + PF) * 0.5 * 15 / 26 / 12
+function gratuityMonthlyFrom(basicMonthly, hraMonthly, conveyanceMonthly, pfMonthly) {
+  return (basicMonthly + hraMonthly + conveyanceMonthly + pfMonthly) * 0.5 * 15 / 26 / 12;
+}
+
+// Builds every component from a candidate monthly Basic.
+function componentsFromBasic(basicMonthly) {
+  const hraMonthly = basicMonthly * 0.5;          // Excel D9  = D8*50%
+  const conveyanceMonthly = basicMonthly * 0.5;   // Excel D10 = D8*50%
+  const pfMonthly = pfMonthlyFromBasic(basicMonthly);
+  const gratuityMonthly = gratuityMonthlyFrom(basicMonthly, hraMonthly, conveyanceMonthly, pfMonthly);
+
+  // Excel E13 = SUM(E8:E10)+SUM(E11:E12), where each E = its D * 12
+  const totalAnnual = (basicMonthly + hraMonthly + conveyanceMonthly + pfMonthly + gratuityMonthly) * 12;
+
+  return { basicMonthly, hraMonthly, conveyanceMonthly, pfMonthly, gratuityMonthly, totalAnnual };
+}
+
+/**
+ * Excel's Goal Seek: solve for monthly Basic (D8) such that the annual
+ * total of all fixed components (E13) equals the fixed salary pool.
+ *
+ * Bisection is used rather than the workbook's nudge-and-retry loop
+ * because the total is monotonically increasing in Basic, so bisection
+ * converges reliably to full double precision.
+ */
+function solveBasicMonthly(fixedPool) {
+  if (fixedPool <= 0) return 0;
+
+  let low = 0;
+  let high = fixedPool; // a monthly Basic this large always overshoots
+
+  for (let i = 0; i < 200; i++) {
+    const mid = (low + high) / 2;
+    if (componentsFromBasic(mid).totalAnnual < fixedPool) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return (low + high) / 2;
+}
+
+// Insurance tiers. PLACEHOLDER for CTC < 10 LPA — the workbook does not
+// cover insurance; confirm the sub-10-LPA amounts with Ganit HR.
 const INSURANCE_TIERS = {
   thresholdLakhs: 10,
   belowThreshold: { medical: 500000, personalAccident: 1000000, term: 2000000 },
   atOrAboveThreshold: { medical: 500000, personalAccident: 1000000, term: 2000000 }
 };
 
+/**
+ * @param {number} ctcLakhs      CTC in lakhs (e.g. 12.5)
+ * @param {number} variableRupees   Variable pay, plain rupees (e.g. 50000)
+ * @param {number} retentionRupees  Retention pay, plain rupees
+ * @param {number} relocationRupees Relocation bonus, plain rupees
+ */
 export function calculateCTCBreakdown(
   ctcLakhs,
-  retentionLakhs = 0,
-  relocationLakhs = 0
+  variableRupees = 0,
+  retentionRupees = 0,
+  relocationRupees = 0
 ) {
   const ctc = ctcLakhs * 100000;
+  const fixedPool = fixedSalaryPool(ctc, variableRupees, retentionRupees, relocationRupees);
 
-  // FIXED PAY
-  const fixedYearly = ctc * CTC_FORMULA.fixedPercent;
-  const basicYearly = fixedYearly * CTC_FORMULA.basicPercentOfFixed;
-  const hraYearly = fixedYearly * CTC_FORMULA.hraPercentOfFixed;
-  const conveyanceYearly = fixedYearly * CTC_FORMULA.conveyancePercentOfFixed;
+  const basicMonthly = solveBasicMonthly(fixedPool);
+  const c = componentsFromBasic(basicMonthly);
 
-  // VARIABLE
-  const variableYearly = ctc * CTC_FORMULA.variablePercent;
+  // The offer letter's Annexure 2 groups these differently from the
+  // workbook: Basic + HRA + Conveyance make up "Total Fixed Pay
+  // Component", while PF + Gratuity make up "Total Benefit Component".
+  const totalFixedMonthly = c.basicMonthly + c.hraMonthly + c.conveyanceMonthly;
+  const totalBenefitMonthly = c.pfMonthly + c.gratuityMonthly;
 
-  // STATUTORY
-  const pfYearly = ctc * CTC_FORMULA.pfPercent;
-  const gratuityYearly = ctc * CTC_FORMULA.gratuityPercent;
-
-  // OPTIONAL (only if entered)
-  const retentionYearly = retentionLakhs * 100000;
-  const relocationYearly = relocationLakhs * 100000;
-
-  // INSURANCE (conditional on CTC threshold)
   const insurance = ctcLakhs >= INSURANCE_TIERS.thresholdLakhs
     ? INSURANCE_TIERS.atOrAboveThreshold
     : INSURANCE_TIERS.belowThreshold;
 
   return {
     fixed: {
-      basic: { monthly: basicYearly / 12, yearly: basicYearly },
-      hra: { monthly: hraYearly / 12, yearly: hraYearly },
-      conveyance: { monthly: conveyanceYearly / 12, yearly: conveyanceYearly },
-      total: { monthly: fixedYearly / 12, yearly: fixedYearly }
-    },
-    variable: {
-      monthly: variableYearly / 12,
-      yearly: variableYearly
+      basic: { monthly: c.basicMonthly, yearly: c.basicMonthly * 12 },
+      hra: { monthly: c.hraMonthly, yearly: c.hraMonthly * 12 },
+      conveyance: { monthly: c.conveyanceMonthly, yearly: c.conveyanceMonthly * 12 },
+      total: { monthly: totalFixedMonthly, yearly: totalFixedMonthly * 12 }
     },
     statutory: {
-      pf: { monthly: pfYearly / 12, yearly: pfYearly },
-      gratuity: { monthly: gratuityYearly / 12, yearly: gratuityYearly }
+      pf: { monthly: c.pfMonthly, yearly: c.pfMonthly * 12 },
+      gratuity: { monthly: c.gratuityMonthly, yearly: c.gratuityMonthly * 12 },
+      total: { monthly: totalBenefitMonthly, yearly: totalBenefitMonthly * 12 }
+    },
+    variable: {
+      monthly: variableRupees / 12,
+      yearly: variableRupees
     },
     optional: {
       retention: {
-        monthly: retentionYearly / 12,
-        yearly: retentionYearly,
-        show: retentionYearly > 0
+        monthly: retentionRupees / 12,
+        yearly: retentionRupees,
+        show: retentionRupees > 0
       },
       relocation: {
-        monthly: relocationYearly / 12,
-        yearly: relocationYearly,
-        show: relocationYearly > 0
+        monthly: relocationRupees / 12,
+        yearly: relocationRupees,
+        show: relocationRupees > 0
       }
     },
     insurance,
-    totalCTC: ctc + retentionYearly + relocationYearly,
-    totalMonthly: (ctc + retentionYearly + relocationYearly) / 12
+    totalCTC: ctc,
+    totalMonthly: ctc / 12,
+
+    // Sanity check: components + other pay must reconcile to the CTC.
+    verification: {
+      fixedPoolRequired: fixedPool,
+      fixedPoolCalculated: c.totalAnnual,
+      reconciles: Math.abs((c.totalAnnual + variableRupees + retentionRupees + relocationRupees) - ctc) < 1
+    }
   };
 }

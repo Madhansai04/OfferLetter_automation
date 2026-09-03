@@ -52,8 +52,9 @@ function buildPage4Fields(v, breakdown) {
     { x: 421, y: 487.8, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.statutory.pf.yearly) },
     { x: 306, y: 473.9, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.statutory.gratuity.monthly) },
     { x: 421, y: 473.9, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.statutory.gratuity.yearly) },
-    { x: 306, y: 460.1, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.fixed.total.monthly + b.statutory.pf.monthly + b.statutory.gratuity.monthly) },
-    { x: 421, y: 460.1, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.fixed.total.yearly + b.statutory.pf.yearly + b.statutory.gratuity.yearly) },
+    // Total Benefit Component = PF + Gratuity only (Annexure 2 grouping)
+    { x: 306, y: 460.1, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.statutory.total.monthly) },
+    { x: 421, y: 460.1, width: 60, height: 10, maxSize: 9, minSize: 6, text: formatNumber(b.statutory.total.yearly) },
 
     { x: 322.5, y: 334.5, width: 70, height: 9, maxSize: 9, minSize: 6, text: formatNumber(b.insurance.medical) },
     { x: 322.5, y: 319.5, width: 70, height: 9, maxSize: 9, minSize: 6, text: formatNumber(b.insurance.personalAccident) },

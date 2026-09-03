@@ -13,6 +13,7 @@ export default function App() {
     phone: '',
     role: '',
     ctc: '',
+    variableAmount: '',
     doj: '',
     posting: '',
     retentionAmount: '',
@@ -32,6 +33,7 @@ export default function App() {
     try {
       const calc = calculateCTCBreakdown(
         parseFloat(data.ctc),
+        data.variableAmount ? parseFloat(data.variableAmount) : 0,
         data.retentionAmount ? parseFloat(data.retentionAmount) : 0,
         data.relocationAmount ? parseFloat(data.relocationAmount) : 0
       );
@@ -47,7 +49,12 @@ export default function App() {
     setFormData(newData);
     setError('');
 
-    if (name === 'ctc' || name === 'retentionAmount' || name === 'relocationAmount') {
+    if (
+      name === 'ctc' ||
+      name === 'variableAmount' ||
+      name === 'retentionAmount' ||
+      name === 'relocationAmount'
+    ) {
       recalculate(newData);
     }
   };
@@ -58,8 +65,21 @@ export default function App() {
     if (!formData.phone.match(/^\+?[1-9]\d{1,14}$/)) return 'Valid phone required';
     if (!formData.role.trim()) return 'Designation is required';
     if (!formData.ctc || parseFloat(formData.ctc) <= 0) return 'Valid CTC required';
+    if (formData.variableAmount === '' || parseFloat(formData.variableAmount) < 0) {
+      return 'Variable pay is required (enter 0 if none)';
+    }
     if (!formData.doj) return 'Date of joining is required';
     if (!formData.posting) return 'Posting location is required';
+
+    const ctc = parseFloat(formData.ctc) * 100000;
+    const deductions =
+      (parseFloat(formData.variableAmount) || 0) +
+      (parseFloat(formData.retentionAmount) || 0) +
+      (parseFloat(formData.relocationAmount) || 0);
+    if (deductions >= ctc) {
+      return 'Variable + retention + relocation must be less than the CTC';
+    }
+
     return '';
   };
 

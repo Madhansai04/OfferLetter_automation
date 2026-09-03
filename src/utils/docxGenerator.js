@@ -68,7 +68,8 @@ export async function generateOfferDocx(formData, breakdown) {
         compensationRow('Total Fixed Pay Component', breakdown.fixed.total.monthly, breakdown.fixed.total.yearly),
         compensationRow('Variable Pay #', 0, breakdown.variable.yearly),
         compensationRow('PF Employer Contribution', breakdown.statutory.pf.monthly, breakdown.statutory.pf.yearly),
-        compensationRow('Gratuity Benefits', breakdown.statutory.gratuity.monthly, breakdown.statutory.gratuity.yearly)
+        compensationRow('Gratuity Benefits', breakdown.statutory.gratuity.monthly, breakdown.statutory.gratuity.yearly),
+        compensationRow('Total Benefit Component', breakdown.statutory.total.monthly, breakdown.statutory.total.yearly)
       ]
     })
   ];
