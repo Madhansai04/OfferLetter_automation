@@ -1,465 +1,201 @@
-import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  WidthType, AlignmentType, HeadingLevel, PageBreak, BorderStyle
-} from 'docx';
-import { formatCurrency, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
+import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
+import { formatNumber, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
 
-const GANIT_BLUE = '1A00D9';
-const GANIT_ORANGE = 'FE6E06';
-const GREY = 'A6A6A6';
+const TEMPLATE_URL = '/offer-letter-template.docx';
+const DOCUMENT_PART = 'word/document.xml';
 
-const COMPANY_ADDRESS = [
-  'Geeyam Tech Square,',
-  '57, Estate Main Rd, Industrial Estate,',
-  'Perungudi, Chennai 600096'
-];
+/**
+ * Word stores a run of text as <w:t>...</w:t>, but it may split a single
+ * visible string across several runs (spell-check state, formatting, revision
+ * marks). "{name}" can therefore live in the file as "{na" + "me}", so a
+ * naive search for "{name}" misses it.
+ *
+ * Each paragraph's runs are merged into the first one before substitution so
+ * placeholders are always contiguous. Formatting is taken from the first run,
+ * which is what the placeholder itself was styled with.
+ */
+function mergeRunsWithinParagraphs(xml) {
+  return xml.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const textNodes = [...paragraph.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)];
+    if (textNodes.length < 2) return paragraph;
 
-function heading(text) {
-  return new Paragraph({
-    spacing: { before: 240, after: 120 },
-    children: [new TextRun({ text, bold: true, color: GANIT_BLUE, size: 24 })]
+    const combined = textNodes.map((m) => m[1]).join('');
+    if (!combined.includes('{')) return paragraph;
+
+    let isFirst = true;
+    return paragraph.replace(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g, () => {
+      if (isFirst) {
+        isFirst = false;
+        return `<w:t xml:space="preserve">${combined}</w:t>`;
+      }
+      return '<w:t xml:space="preserve"></w:t>';
+    });
   });
 }
 
-function body(text, opts = {}) {
-  return new Paragraph({
-    spacing: { after: 120 },
-    alignment: opts.align,
-    children: [new TextRun({ text, size: 20, ...opts.run })]
-  });
-}
-
-function bullet(boldPart, rest) {
-  return new Paragraph({
-    bullet: { level: 0 },
-    spacing: { after: 80 },
-    children: [
-      new TextRun({ text: boldPart, bold: true, italics: true, size: 20 }),
-      new TextRun({ text: rest, size: 20 })
-    ]
-  });
-}
-
-function numbered(index, boldPart, rest) {
-  return new Paragraph({
-    spacing: { after: 120 },
-    children: [
-      new TextRun({ text: `${index}. `, size: 20 }),
-      new TextRun({ text: boldPart, bold: true, size: 20 }),
-      new TextRun({ text: rest, size: 20 })
-    ]
-  });
-}
-
-function letterhead() {
-  return [
-    new Paragraph({
-      alignment: AlignmentType.RIGHT,
-      spacing: { after: 0 },
-      children: COMPANY_ADDRESS.flatMap((line, i) => [
-        ...(i > 0 ? [new TextRun({ break: 1 })] : []),
-        new TextRun({ text: line, size: 18, color: '333333' })
-      ])
-    }),
-    new Paragraph({ spacing: { after: 120 }, children: [] })
-  ];
-}
-
-function footer(pageNumber) {
-  return new Paragraph({
-    alignment: AlignmentType.RIGHT,
-    spacing: { before: 240 },
-    border: { top: { style: BorderStyle.SINGLE, size: 4, color: 'DDDDDD' } },
-    children: [
-      new TextRun({ text: 'Private and Confidential ', size: 16, color: GREY }),
-      new TextRun({ text: '| ', size: 16, color: GANIT_ORANGE }),
-      new TextRun({ text: `Page ${pageNumber} of 4`, size: 16, color: GREY })
-    ]
-  });
-}
-
-function cell(children, opts = {}) {
-  return new TableCell({
-    columnSpan: opts.columnSpan,
-    children: Array.isArray(children) ? children : [children]
-  });
-}
-
-function labeledRow(label, value) {
-  return new TableRow({
-    children: [
-      cell(new Paragraph({ children: [new TextRun({ text: label, size: 20 })] })),
-      cell(new Paragraph({ children: [new TextRun({ text: String(value), size: 20 })] }))
-    ]
-  });
-}
-
-function amountRow(label, monthly, yearly, opts = {}) {
-  const make = (t) => new Paragraph({
-    children: [new TextRun({ text: t, size: 20, bold: opts.bold })]
-  });
-  return new TableRow({
-    children: [cell(make(label)), cell(make(monthly)), cell(make(yearly))]
-  });
-}
-
-// Variable pay, retention and relocation are quoted as one annual amount,
-// so the value spans the monthly and yearly columns.
-function singleAmountRow(label, amount, opts = {}) {
-  const make = (t) => new Paragraph({
-    children: [new TextRun({ text: t, size: 20, bold: opts.bold })]
-  });
-  return new TableRow({
-    children: [cell(make(label)), cell(make(amount), { columnSpan: 2 })]
-  });
-}
-
-function sectionRow(label) {
-  return new TableRow({
-    children: [
-      cell(
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: label, bold: true, size: 20 })]
-        }),
-        { columnSpan: 3 }
-      )
-    ]
-  });
-}
-
-function fullWidthTable(rows) {
-  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows });
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**
- * Builds an editable .docx of the complete offer letter — all four pages of
- * the template's content: the letterhead and offer, mission/culture,
- * signature and acceptance sections, Annexure 1's terms and conditions, and
- * Annexure 2's compensation structure.
+ * Replaces the named {placeholder} tokens the template uses. The template is
+ * inconsistent about case ({Name} in the header table, {name} in Annexure 2),
+ * so matching ignores case.
+ */
+function fillNamedPlaceholders(xml, values) {
+  let output = xml;
+  for (const [token, value] of Object.entries(values)) {
+    const pattern = new RegExp(`\\{\\s*${token}\\s*\\}`, 'gi');
+    output = output.replace(pattern, escapeXml(value));
+  }
+  return output;
+}
+
+/**
+ * The compensation table uses bare "{}" placeholders that carry no name, so
+ * they can only be identified by where they sit in the table. They are filled
+ * in document order, which for the template's Annexure 2 table is:
  *
- * This mirrors the letter's *content*, not its exact visual design: the
- * template's logo, accent bar and precise typography live inside the PDF and
- * cannot be reproduced byte-for-byte in Word. The point of this file is that
- * HR can edit it; the PDF remains the pixel-accurate version.
+ *   CTC, Basic m/y, HRA m/y, Conveyance m/y, Total Fixed m/y,
+ *   Variable, PF m/y, Gratuity m/y, Total Benefit m/y
+ *
+ * If a row is ever added, removed or reordered in the .docx, this list must
+ * be updated to match.
+ */
+function fillPositionalPlaceholders(xml, orderedValues) {
+  let index = 0;
+  return xml.replace(/\{\s*\}/g, () => {
+    const value = orderedValues[index];
+    index += 1;
+    return value === undefined ? '' : escapeXml(value);
+  });
+}
+
+/**
+ * The insurance table has no placeholders — each coverage cell contains only
+ * "/-". The three amounts are inserted before that suffix, in table order:
+ * Medical, Personal Accident, Term.
+ */
+function fillInsuranceAmounts(xml, amounts) {
+  let index = 0;
+  return xml.replace(/<w:t(?:\s[^>]*)?>\s*\/-\s*<\/w:t>/g, () => {
+    const amount = amounts[index];
+    index += 1;
+    if (amount === undefined) return '<w:t xml:space="preserve">/-</w:t>';
+    return `<w:t xml:space="preserve">${escapeXml(amount)}/-</w:t>`;
+  });
+}
+
+/**
+ * Replaces the hardcoded posting city in the offer sentence.
+ *
+ * After runs are merged the sentence sits in one <w:t>, so the city is matched
+ * within the run that follows "join Ganit on". If the template's wording ever
+ * changes so the anchor no longer matches, the sentence is left untouched
+ * rather than risking a wrong substitution elsewhere.
+ */
+function replacePostingCity(xml, city) {
+  const posting = String(city || '').trim();
+  if (!posting) return xml;
+
+  return xml.replace(
+    /(join\s+Ganit\s+on\b[\s\S]{0,200}?\bat\s+)Chennai\b/,
+    (_match, before) => `${before}${escapeXml(posting)}`
+  );
+}
+
+/**
+ * Fills the Ganit offer letter Word template with the form's values.
+ *
+ * The template's own .docx is downloaded, its document part rewritten, and the
+ * package zipped back up. Headers, footers, images, fonts, styles and page
+ * layout are carried through untouched, because the original file is edited
+ * rather than a new document being built.
  */
 export async function generateOfferDocx(formData, breakdown) {
+  const response = await fetch(TEMPLATE_URL);
+  if (!response.ok) {
+    throw new Error(`Could not load the Word template (HTTP ${response.status})`);
+  }
+  const archive = unzipSync(new Uint8Array(await response.arrayBuffer()));
+
+  const documentPart = archive[DOCUMENT_PART];
+  if (!documentPart) {
+    throw new Error('The Word template is missing its word/document.xml part');
+  }
+
   const today = new Date();
   const ctcAmount = formData.ctc * 100000;
 
-  // ---------------------------------------------------------------- page 1
-  const page1 = [
-    ...letterhead(),
+  let xml = mergeRunsWithinParagraphs(strFromU8(documentPart));
 
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-      children: [new TextRun({ text: 'OFFER LETTER', bold: true, color: GANIT_BLUE, size: 40 })]
-    }),
-
-    new Paragraph({
-      spacing: { after: 200 },
-      children: [
-        new TextRun({ text: `Ref: GANIT/HR/APPT/${today.getFullYear()}`, size: 20, color: GREY }),
-        new TextRun({ text: '\t\t\t', size: 20 }),
-        new TextRun({ text: `Date: ${formatDateSlashes(today)}`, size: 20, color: GREY })
-      ]
-    }),
-
-    fullWidthTable([
-      new TableRow({
-        children: [
-          cell(new Paragraph({ children: [new TextRun({ text: 'Name', size: 18, color: GREY })] })),
-          cell(new Paragraph({ children: [new TextRun({ text: 'Email', size: 18, color: GREY })] })),
-          cell(new Paragraph({ children: [new TextRun({ text: 'Contact', size: 18, color: GREY })] }))
-        ]
-      }),
-      new TableRow({
-        children: [
-          cell(new Paragraph({ children: [new TextRun({ text: formData.name, size: 20 })] })),
-          cell(new Paragraph({ children: [new TextRun({ text: formData.email, size: 20 })] })),
-          cell(new Paragraph({ children: [new TextRun({ text: formData.phone, size: 20 })] }))
-        ]
-      })
-    ]),
-
-    new Paragraph({ spacing: { after: 200 }, children: [] }),
-    body(`Dear ${formData.name},`),
-
-    new Paragraph({
-      spacing: { after: 120 },
-      children: [
-        new TextRun({ text: 'Congratulations', bold: true, color: GANIT_BLUE, size: 20 }),
-        new TextRun({ text: '. Welcome to the exciting world of ', color: GANIT_BLUE, size: 20 }),
-        new TextRun({ text: 'Data and AI!', bold: true, color: GANIT_ORANGE, size: 20 })
-      ]
-    }),
-
-    new Paragraph({
-      spacing: { after: 120 },
-      children: [
-        new TextRun({ text: 'We are pleased to offer you a full-time role as ', size: 20 }),
-        new TextRun({ text: formData.role, bold: true, size: 20 }),
-        new TextRun({ text: ' at Ganit Business Solutions Pvt. Ltd. Your potential annual Compensation of ', size: 20 }),
-        // formatCurrency already renders the rupee symbol, so no "INR" prefix.
-        new TextRun({ text: formatCurrency(ctcAmount), bold: true, size: 20 }),
-        new TextRun({ text: ` (${numberToWords(Math.floor(ctcAmount))}). You will join Ganit on `, size: 20 }),
-        new TextRun({ text: formatDateLong(formData.doj), bold: true, size: 20 }),
-        new TextRun({ text: ' and your position is work from ', size: 20 }),
-        new TextRun({ text: formData.posting, bold: true, size: 20 }),
-        new TextRun({ text: ' and not remote.', size: 20 })
-      ]
-    }),
-
-    body(
-      'At Ganit you are expected to operate with the highest degree of Integrity, efficiency and ' +
-      "responsibility. We are fully confident that you will add tremendous value through your role and " +
-      "strengthen Ganit's growth."
-    ),
-
-    heading('Our Mission'),
-    new Paragraph({
-      spacing: { after: 120 },
-      children: [
-        new TextRun({ text: 'Maximize ', italics: true, size: 20 }),
-        new TextRun({ text: 'decision velocity', bold: true, italics: true, color: GANIT_BLUE, size: 20 }),
-        new TextRun({ text: ' and ', italics: true, size: 20 }),
-        new TextRun({ text: 'minimize decision risk.', bold: true, italics: true, color: GANIT_ORANGE, size: 20 })
-      ]
-    }),
-    body(
-      'We partner with business leaders to give their data, a voice. We partner with them to discover, ' +
-      'frame and solve problems across four key quadrants: descriptive, diagnostic, predictive and prescriptive.'
-    ),
-
-    heading('Our Culture'),
-    body('Our culture is about behaviors and not buzzwords.'),
-    bullet('We are yellow color blind', ': To us there is no yellow light, its either red or green.'),
-    bullet('We punch above our weight', ': We take challenges beyond our comfort zone.'),
-    bullet('To us, Attitude>Aptitude', ': Our team grows on attitude and drive rather than skills.'),
-    bullet('Maximize Vocalness, minimize hierarchy', ': We follow flat structure to reduce bureaucracy.'),
-    bullet('We keep our small promises', ': We build trust by delivering consistently on our small promises.'),
-
-    heading("What's exciting at Ganit"),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: "You aren't just filling a position; you are its architect.", size: 20 })] }),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: 'Artificial Intelligence is our first language and the foundation of every solution we build.', size: 20 })] }),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: 'We champion a flat hierarchy to foster talent to have a fast-track career progression.', size: 20 })] }),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: 'You will collaborate directly with enterprise leaders to influence high-stakes decision-making', size: 20 })] }),
-
-    footer(1),
-    new Paragraph({ children: [new PageBreak()] })
-  ];
-
-  // ---------------------------------------------------------------- page 2
-  const page2 = [
-    ...letterhead(),
-
-    body(
-      'Terms and Conditions applicable to this offer are stated in Annexure 1 and break up of your ' +
-      'potential compensation in Annexure 2. Both Annexures are integral part of this offer letter. ' +
-      'Please sign this letter within five calendar days to confirm your acceptance. Reach out to our ' +
-      'Talent Partner for revalidating this letter, if you could not accept in time.'
-    ),
-    body('We welcome you to Ganit and wish you a bright & prosperous career with us.'),
-
-    new Paragraph({
-      spacing: { before: 200, after: 480 },
-      children: [new TextRun({ text: 'Yours Sincerely,', bold: true, color: GANIT_BLUE, size: 20 })]
-    }),
-    new Paragraph({
-      spacing: { after: 0 },
-      children: [new TextRun({ text: 'Ashok Harwani', bold: true, color: GANIT_BLUE, size: 20 })]
-    }),
-    new Paragraph({
-      spacing: { after: 480 },
-      children: [new TextRun({ text: 'Co-Founder & Chief Growth Officer', bold: true, color: GANIT_BLUE, size: 20 })]
-    }),
-
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 200 },
-      children: [new TextRun({ text: 'Acceptance', bold: true, size: 22 })]
-    }),
-    body(
-      'I hereby accept employment with Ganit. I have read the offer completely and accept all the terms ' +
-      'and conditions mentioned. I have understood and accepted the compensation details as explained ' +
-      'in Annexure-1 and will keep it confidential. I accept that I have provided correct and updated ' +
-      'personal information till now and will provide any additional information as and when required ' +
-      'by the organization.'
-    ),
-    new Paragraph({ spacing: { before: 360, after: 360 }, children: [new TextRun({ text: 'Name:', bold: true, size: 20 })] }),
-    new Paragraph({ spacing: { after: 360 }, children: [new TextRun({ text: 'Signature:', bold: true, size: 20 })] }),
-    new Paragraph({ spacing: { after: 120 }, children: [new TextRun({ text: 'Date:', bold: true, size: 20 })] }),
-
-    footer(2),
-    new Paragraph({ children: [new PageBreak()] })
-  ];
-
-  // ---------------------------------------------------------------- page 3
-  const page3 = [
-    ...letterhead(),
-
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
-      children: [new TextRun({ text: 'Annexure 1 - Terms & Conditions', bold: true, underline: {}, size: 22 })]
-    }),
-
-    numbered(1, 'Probation Period', ": You will be under 6 months' probation period and will be confirmed in writing based on your performance and contributions."),
-    numbered(2, 'Leave', ": You shall be entitled to 32 days of leave, comprising 22 paid leave days and 10 company's declared holidays."),
-    numbered(3, 'Annual Appraisal', ': Ganit follows calendar year appraisal process (January to December).'),
-    numbered(4, 'Background Check', ": Candidates' employment with Ganit is conditional and subject to satisfactory background and reference checks in line with Company policy."),
-    numbered(5, 'Notice for Separation', ": You will typically have to serve 30 days' notice during probation period and 90 days after confirmation. However, notice period requirement is subject to extant policy and business requirements. To ensure business continuity, a six-month commitment is required. If you decide to separate before expiry of this period, an amount of 10% of your Annual Fixed Pay will be payable by you as damages to cover business impact."),
-    new Paragraph({
-      spacing: { after: 120 },
-      children: [
-        new TextRun({ text: '6. From the day of joining, you will be governed and adhered to the ', size: 20 }),
-        new TextRun({ text: 'Code of conduct', bold: true, size: 20 }),
-        new TextRun({ text: ' Policies, and ', size: 20 }),
-        new TextRun({ text: 'Confidentiality provisions', bold: true, size: 20 }),
-        new TextRun({ text: '.', size: 20 })
-      ]
-    }),
-    numbered(7, 'Minimum tenure commitment clause', ': To ensure business continuity, a six-month commitment is required. If you decide to separate before expiry of this period, 10% of your Annual Fixed Pay will be payable by you as damages to cover business impact.'),
-    new Paragraph({
-      spacing: { after: 120 },
-      children: [
-        new TextRun({ text: '8. ', size: 20 }),
-        new TextRun({ text: 'Retention', bold: true, size: 20 })
-      ]
-    }),
-    body(
-      'As part of your appointment with Ganit, you agree to commit to a minimum period of one year ' +
-      '(12 months) of employment from the date of joining.'
-    ),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: 'If you voluntarily resign before completing 12 months, you will be required to reimburse the company INR 1,00,000, to compensate for training and onboarding costs.', size: 20 })] }),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: "However, if you leave due to medical reasons, or higher education, this clause may be waived at the company's discretion upon providing valid documentation.", size: 20 })] }),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: 'If the company terminates your employment due to performance issues, code of conduct violations, or policy breaches, this clause will remain inapplicable, and no compensation will be owed by the company.', size: 20 })] }),
-    new Paragraph({ bullet: { level: 0 }, spacing: { after: 80 }, children: [new TextRun({ text: 'If the company terminates employment for reasons other than misconduct or performance issues, the company will provide compensation in accordance with the statutory notice period.', size: 20 })] }),
-
-    footer(3),
-    new Paragraph({ children: [new PageBreak()] })
-  ];
-
-  // ---------------------------------------------------------------- page 4
-  const compensationRows = [
-    new TableRow({
-      children: [
-        cell(new Paragraph({ children: [] })),
-        cell(new Paragraph({ children: [new TextRun({ text: 'Monthly', bold: true, size: 20 })] })),
-        cell(new Paragraph({ children: [new TextRun({ text: 'Yearly', bold: true, size: 20 })] }))
-      ]
-    }),
-    sectionRow('FIXED PAY'),
-    amountRow('1  Basic Pay', formatCurrency(breakdown.fixed.basic.monthly), formatCurrency(breakdown.fixed.basic.yearly)),
-    amountRow('2  House Rent Allowance', formatCurrency(breakdown.fixed.hra.monthly), formatCurrency(breakdown.fixed.hra.yearly)),
-    amountRow('3  Conveyance Allowance', formatCurrency(breakdown.fixed.conveyance.monthly), formatCurrency(breakdown.fixed.conveyance.yearly)),
-    amountRow('Total Fixed Pay Component', formatCurrency(breakdown.fixed.total.monthly), formatCurrency(breakdown.fixed.total.yearly), { bold: true }),
-    sectionRow('VARIABLE'),
-    singleAmountRow('4  Variable Pay #', formatCurrency(breakdown.variable.yearly))
-  ];
-
-  if (breakdown.optional.retention.show || breakdown.optional.relocation.show) {
-    compensationRows.push(sectionRow('OPTIONAL BENEFITS'));
-    if (breakdown.optional.retention.show) {
-      compensationRows.push(singleAmountRow('Retention Pay *', formatCurrency(breakdown.optional.retention.yearly), { bold: true }));
-    }
-    if (breakdown.optional.relocation.show) {
-      compensationRows.push(singleAmountRow('Relocation Bonus **', formatCurrency(breakdown.optional.relocation.yearly), { bold: true }));
-    }
-  }
-
-  compensationRows.push(
-    sectionRow('STATUTORY BENEFITS'),
-    amountRow('5  PF Employer Contribution', formatCurrency(breakdown.statutory.pf.monthly), formatCurrency(breakdown.statutory.pf.yearly)),
-    amountRow('6  Gratuity Benefits', formatCurrency(breakdown.statutory.gratuity.monthly), formatCurrency(breakdown.statutory.gratuity.yearly)),
-    amountRow('Total Benefit Component', formatCurrency(breakdown.statutory.total.monthly), formatCurrency(breakdown.statutory.total.yearly), { bold: true })
+  // Annexure 2's "Date of Joining" row uses {date}, the same token the page-1
+  // header uses for the offer date. Fill this one first, matching on the
+  // "Joining" run that immediately precedes it, so the generic {date}
+  // replacement below does not put today's date in the joining-date cell.
+  xml = xml.replace(
+    /(Joining<\/w:t>[\s\S]{0,1200}?<w:t(?:\s[^>]*)?>)\{\s*date\s*\}(<\/w:t>)/,
+    (_match, before, after) => `${before}${escapeXml(formatDateLong(formData.doj))}${after}`
   );
 
-  const page4 = [
-    ...letterhead(),
-
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
-      children: [new TextRun({ text: 'Annexure 2 - Compensation Structure', bold: true, underline: {}, size: 22 })]
-    }),
-
-    fullWidthTable([
-      labeledRow('Name', formData.name),
-      labeledRow('Date of Joining', formatDateLong(formData.doj)),
-      labeledRow('Designation', formData.role),
-      labeledRow('CTC (Per Annum)', formatCurrency(ctcAmount))
-    ]),
-
-    new Paragraph({ spacing: { after: 200 }, children: [] }),
-    fullWidthTable(compensationRows),
-
-    new Paragraph({
-      spacing: { before: 120, after: 60 },
-      children: [new TextRun({ text: 'Salary heads are subject to government policies & tax will be apportioned accordingly.', italics: true, size: 18 })]
-    }),
-    new Paragraph({
-      spacing: { after: 200 },
-      children: [new TextRun({ text: '# Variable Pay will be paid yearly based on employee & company performance during Q1 of next calendar year.', italics: true, size: 18 })]
-    }),
-
-    body('Employees will be covered under the company sponsored Insurance coverage as mentioned below:'),
-    fullWidthTable([
-      new TableRow({
-        children: [
-          cell(new Paragraph({ children: [new TextRun({ text: 'Benefit', bold: true, size: 20 })] })),
-          cell(new Paragraph({ children: [new TextRun({ text: 'Coverage', bold: true, size: 20 })] }))
-        ]
-      }),
-      labeledRow('Medical Insurance', formatCurrency(breakdown.insurance.medical)),
-      labeledRow('Personal Accident Insurance', formatCurrency(breakdown.insurance.personalAccident)),
-      labeledRow('Term Insurance', formatCurrency(breakdown.insurance.term))
-    ])
-  ];
-
-  if (breakdown.optional.retention.show) {
-    page4.push(new Paragraph({
-      spacing: { before: 160, after: 60 },
-      children: [new TextRun({
-        text: '* Retention pay will be prorated & paid during June & December payroll. Any payout must be reimbursed if you resign within 12 months from the date of joining.',
-        size: 16
-      })]
-    }));
-  }
-  if (breakdown.optional.relocation.show) {
-    page4.push(new Paragraph({
-      spacing: { after: 60 },
-      children: [new TextRun({
-        text: '** Relocation bonus will be paid during the subsequent payroll after employees complete 1 month from date of joining and will be recovered if you resign within 12 months from the date of joining.',
-        size: 16
-      })]
-    }));
-  }
-
-  page4.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 240, after: 120 },
-      children: [new TextRun({
-        text: 'This offer & compensation is strictly confidential, you are advised not to discuss it with anyone.',
-        bold: true,
-        size: 20
-      })]
-    }),
-    footer(4)
-  );
-
-  const doc = new Document({
-    styles: {
-      default: {
-        document: { run: { font: 'Calibri', size: 20 } }
-      }
-    },
-    sections: [{ children: [...page1, ...page2, ...page3, ...page4] }]
+  xml = fillNamedPlaceholders(xml, {
+    year: today.getFullYear(),
+    date: formatDateSlashes(today),
+    Name: formData.name,
+    name: formData.name,
+    email: formData.email,
+    contact_no: formData.phone,
+    role: formData.role,
+    ctc: formatNumber(ctcAmount),
+    'in words': numberToWords(Math.floor(ctcAmount)),
+    'date of joinig': formatDateLong(formData.doj),
+    'date of joining': formatDateLong(formData.doj)
   });
 
-  const blob = await Packer.toBlob(doc);
+  // The template hardcodes the posting city as "Chennai" in the offer
+  // sentence ("You will join Ganit on {date of joinig} at Chennai and your
+  // position is ..."). Swap it for the city entered on the form.
+  //
+  // The word also appears twice in the letterhead address, but that lives in
+  // word/header1.xml which is copied through untouched, so only the posting
+  // reference is affected. The match is still anchored to the sentence to
+  // keep it unambiguous.
+  xml = replacePostingCity(xml, formData.posting);
+
+  xml = fillPositionalPlaceholders(xml, [
+    formatNumber(ctcAmount),
+    formatNumber(breakdown.fixed.basic.monthly),
+    formatNumber(breakdown.fixed.basic.yearly),
+    formatNumber(breakdown.fixed.hra.monthly),
+    formatNumber(breakdown.fixed.hra.yearly),
+    formatNumber(breakdown.fixed.conveyance.monthly),
+    formatNumber(breakdown.fixed.conveyance.yearly),
+    formatNumber(breakdown.fixed.total.monthly),
+    formatNumber(breakdown.fixed.total.yearly),
+    formatNumber(breakdown.variable.yearly),
+    formatNumber(breakdown.statutory.pf.monthly),
+    formatNumber(breakdown.statutory.pf.yearly),
+    formatNumber(breakdown.statutory.gratuity.monthly),
+    formatNumber(breakdown.statutory.gratuity.yearly),
+    formatNumber(breakdown.statutory.total.monthly),
+    formatNumber(breakdown.statutory.total.yearly)
+  ]);
+
+  xml = fillInsuranceAmounts(xml, [
+    formatNumber(breakdown.insurance.medical),
+    formatNumber(breakdown.insurance.personalAccident),
+    formatNumber(breakdown.insurance.term)
+  ]);
+
+  archive[DOCUMENT_PART] = strToU8(xml);
+
+  const blob = new Blob([zipSync(archive)], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  });
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
