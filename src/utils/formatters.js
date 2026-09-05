@@ -44,6 +44,12 @@ export function formatDateLong(dateString) {
   return `${day} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// Title-cased words for the letter, e.g. "Five Lakh" rather than
+// "five lakh", matching how the offer sentence is written.
+export function numberToWordsTitleCase(num) {
+  return numberToWords(num).replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
 // Hyphenated long form, e.g. "03-September-2026", used for the date of
 // joining in Annexure 2. Page 1 keeps the spaced form above.
 export function formatDateLongHyphen(dateString) {

@@ -1,6 +1,7 @@
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
 import {
-  formatNumber, formatDateSlashes, formatDateLong, formatDateLongHyphen, numberToWords
+  formatNumber, formatDateSlashes, formatDateLong, formatDateLongHyphen,
+  numberToWordsTitleCase
 } from './formatters';
 import { downloadBlob } from './downloadBlob';
 
@@ -118,44 +119,93 @@ function replacePostingCity(xml, city) {
   );
 }
 
-const SEMIBOLD_FONT = 'Segoe UI Semibold';
+/**
+ * Splits a merged run so the given substrings can be set in bold while the
+ * text around them stays plain.
+ *
+ * Filling the offer sentence requires merging its runs, because the template
+ * splits {ctc} and {date of joinig} across several. That merge flattens the
+ * whole sentence to one style, losing the emphasis the letter is written with.
+ * This puts it back: the run is broken into alternating plain and bold runs,
+ * so the values stand out exactly as in the signed-off wording.
+ *
+ * `segments` are matched longest-first so that a value contained inside
+ * another (a city that also appears in a role title, say) cannot split its
+ * container.
+ */
+function emphasiseWithinRun(run, segments) {
+  const textMatch = run.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/);
+  if (!textMatch) return run;
+
+  const fullText = textMatch[1];
+  const wanted = segments
+    .filter((s) => s.text && String(s.text).trim().length > 0)
+    .map((s) => ({ ...s, text: escapeXml(String(s.text).trim()) }))
+    .sort((a, b) => b.text.length - a.text.length);
+  if (wanted.length === 0) return run;
+
+  const baseProps = (run.match(/<w:rPr>[\s\S]*?<\/w:rPr>/) || [''])[0];
+
+  // Walk the text, carving out each wanted segment as its own run.
+  const pieces = [];
+  let cursor = 0;
+  while (cursor < fullText.length) {
+    let hit = null;
+    for (const segment of wanted) {
+      const at = fullText.indexOf(segment.text, cursor);
+      if (at !== -1 && (hit === null || at < hit.at)) hit = { at, segment };
+    }
+    if (!hit) {
+      pieces.push({ text: fullText.slice(cursor), emphasis: null });
+      break;
+    }
+    if (hit.at > cursor) {
+      pieces.push({ text: fullText.slice(cursor, hit.at), emphasis: null });
+    }
+    pieces.push({ text: hit.segment.text, emphasis: hit.segment });
+    cursor = hit.at + hit.segment.text.length;
+  }
+  if (pieces.length < 2) return run;
+
+  return pieces
+    .filter((piece) => piece.text.length > 0)
+    .map((piece) => {
+      if (!piece.emphasis) {
+        return `<w:r>${baseProps}<w:t xml:space="preserve">${piece.text}</w:t></w:r>`;
+      }
+      const props = baseProps
+        ? baseProps.replace('</w:rPr>', '<w:b/></w:rPr>')
+        : '<w:rPr><w:b/></w:rPr>';
+      return `<w:r>${props}<w:t xml:space="preserve">${piece.text}</w:t></w:r>`;
+    })
+    .join('');
+}
 
 /**
- * Restyles the runs holding the given values as Segoe UI Semibold.
+ * Restores the offer sentence's emphasis after its runs have been merged.
  *
- * The template sets the inline details in the offer sentence ({role}, the CTC,
- * the amount in words, the joining date, the city) in plain bold rather than
- * the Segoe UI Semibold used for the candidate's name, email and contact. This
- * runs after substitution and matches on the filled values, so it restyles only
- * those runs and leaves the surrounding bold words — "Data and AI!", "INR",
- * "(Rupees", "Only)." — exactly as the template has them.
+ * The sentence reads, with the emphasised parts in bold:
  *
- * Font size is left untouched: these sit inline in a 10pt sentence.
+ *   We are pleased to offer you a full-time role as **Data Analyst** at Ganit
+ *   Business Solutions Pvt. Ltd. Your potential annual Compensation of
+ *   **INR 5,00,000/- (Rupees Five Lakh Only).** You will join Ganit on
+ *   **02 September 2026** at **Chennai** and your position is work from client
+ *   office and or Ganit office and not remote.
+ *
+ * Note the compensation phrase is emphasised as a whole — "INR", the "/-" and
+ * the bracketed words in it are bold too, not just the figure.
  */
-function applySemiboldToValues(xml, values) {
-  const wanted = values
-    .map((value) => String(value ?? '').trim())
-    .filter((value) => value.length > 0);
-  if (wanted.length === 0) return xml;
-
+function restoreOfferSentenceEmphasis(xml, { role, compensationPhrase, joiningDate, city }) {
   return xml.replace(/<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g, (run) => {
-    const textMatch = run.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/);
-    if (!textMatch) return run;
+    const text = (run.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/) || [])[1];
+    if (text === undefined || !text.includes('pleased to offer')) return run;
 
-    const text = textMatch[1].trim();
-    if (!wanted.includes(text)) return run;
-    if (run.includes(`w:ascii="${SEMIBOLD_FONT}"`)) return run; // already semibold
-
-    if (/<w:rPr>/.test(run)) {
-      return run.replace(
-        /<w:rPr>/,
-        `<w:rPr><w:rFonts w:ascii="${SEMIBOLD_FONT}" w:hAnsi="${SEMIBOLD_FONT}"/>`
-      );
-    }
-    return run.replace(
-      /(<w:r(?:\s[^>]*)?>)/,
-      `$1<w:rPr><w:rFonts w:ascii="${SEMIBOLD_FONT}" w:hAnsi="${SEMIBOLD_FONT}"/></w:rPr>`
-    );
+    return emphasiseWithinRun(run, [
+      { text: role },
+      { text: compensationPhrase },
+      { text: joiningDate },
+      { text: city }
+    ]);
   });
 }
 
@@ -204,7 +254,7 @@ export async function generateOfferDocx(formData, breakdown) {
     contact_no: formData.phone,
     role: formData.role,
     ctc: formatNumber(ctcAmount),
-    'in words': numberToWords(Math.floor(ctcAmount)),
+    'in words': numberToWordsTitleCase(Math.floor(ctcAmount)),
     'date of joinig': formatDateLong(formData.doj),
     'date of joining': formatDateLong(formData.doj)
   });
@@ -244,16 +294,14 @@ export async function generateOfferDocx(formData, breakdown) {
     formatNumber(breakdown.insurance.term)
   ]);
 
-  // Set the offer sentence's inline details in Segoe UI Semibold, matching
-  // the candidate's name, email and contact which the template already styles
-  // that way.
-  xml = applySemiboldToValues(xml, [
-    formData.role,
-    formatNumber(ctcAmount),
-    numberToWords(Math.floor(ctcAmount)),
-    formatDateLong(formData.doj),
-    String(formData.posting || '').trim()
-  ]);
+  // Filling the offer sentence required merging its runs, which flattened its
+  // styling. Put the emphasis back.
+  xml = restoreOfferSentenceEmphasis(xml, {
+    role: formData.role,
+    compensationPhrase: `INR ${formatNumber(ctcAmount)}/- (Rupees ${numberToWordsTitleCase(Math.floor(ctcAmount))} Only).`,
+    joiningDate: formatDateLong(formData.doj),
+    city: String(formData.posting || '').trim()
+  });
 
   archive[DOCUMENT_PART] = strToU8(xml);
 
