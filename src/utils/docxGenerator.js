@@ -119,6 +119,136 @@ function replacePostingCity(xml, city) {
   );
 }
 
+const RETENTION_FOOTNOTE =
+  '* Retention pay will be prorated & paid during June & December payroll. '
+  + 'Any payout must be reimbursed if you resign within 12 months from the date of joining.';
+
+const RELOCATION_FOOTNOTE =
+  '** Relocation bonus will be paid during the subsequent payroll after employees '
+  + 'complete 1 month from date of joining and will be recovered if you resign within '
+  + '12 months from the date of joining.';
+
+/**
+ * Adds Retention Pay and Relocation Bonus rows to the compensation table.
+ *
+ * The template has no rows for them, so the Variable Pay row is cloned: the
+ * same three cells, the same widths, and the same gridSpan=4 merged value cell
+ * carrying the rupee symbol. Cloning rather than hand-building the XML keeps
+ * the new rows identical to the surrounding table if the template's styling
+ * ever changes.
+ *
+ * Rows are only added when an amount was entered; a blank field adds nothing.
+ */
+function addOptionalBenefitRows(xml, entries) {
+  const wanted = entries.filter((entry) => entry.amount > 0);
+  if (wanted.length === 0) return xml;
+
+  // The Variable Pay row is the one whose label cell reads "Variable ... Pay".
+  const rowPattern = /<w:tr[\s>][\s\S]*?<\/w:tr>/g;
+  const rows = [...xml.matchAll(rowPattern)];
+  const templateRow = rows.find((m) => {
+    const text = m[0].replace(/<[^>]+>/g, '');
+    return /Variable\s*Pay/.test(text);
+  });
+  if (!templateRow) return xml; // template changed — leave the table alone
+
+  const source = templateRow[0];
+  let sequence = 4; // Variable Pay is item 4; these follow it
+
+  const newRows = wanted.map((entry) => {
+    sequence += 1;
+
+    // Rebuild the row cell by cell. The three cells are, in order: the item
+    // number, the label, and the merged value cell. Their text is replaced by
+    // position rather than by matching content, because by this point the
+    // template's {} placeholders already hold Variable Pay's own figures.
+    const cells = [...source.matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)].map((m) => m[0]);
+    if (cells.length !== 3) return null;
+
+    const replacements = [
+      String(sequence),
+      entry.label,
+      `₹ ${formatNumber(entry.amount)}`
+    ];
+
+    let row = source;
+    cells.forEach((cell, index) => {
+      // Collapse the cell's runs into a single run carrying the new text,
+      // keeping the first run's properties so styling matches the template.
+      const firstRunProps = (cell.match(/<w:rPr>[\s\S]*?<\/w:rPr>/) || [''])[0];
+      const rebuilt = cell.replace(
+        /(<w:p(?:\s[^>]*)?>(?:<w:pPr>[\s\S]*?<\/w:pPr>)?)[\s\S]*?(<\/w:p>)/,
+        (_m, open, close) =>
+          `${open}<w:r>${firstRunProps}`
+          + `<w:t xml:space="preserve">${escapeXml(replacements[index])}</w:t>`
+          + `</w:r>${close}`
+      );
+      row = row.replace(cell, rebuilt);
+    });
+
+    return row;
+  }).filter(Boolean);
+
+  if (newRows.length === 0) return xml;
+
+  // Insert directly after the Variable Pay row.
+  const insertAt = templateRow.index + source.length;
+  const withRows = xml.slice(0, insertAt) + newRows.join('') + xml.slice(insertAt);
+
+  // The statutory rows are numbered 5 and 6 in the template, which now
+  // collides with the rows just inserted. Push them along so the table reads
+  // 1..N without repeats.
+  return renumberStatutoryRows(withRows, newRows.length);
+}
+
+/**
+ * Shifts the PF and Gratuity row numbers by `offset` so they continue the
+ * sequence after any inserted optional-benefit rows.
+ */
+function renumberStatutoryRows(xml, offset) {
+  if (offset === 0) return xml;
+
+  return xml.replace(/<w:tr[\s>][\s\S]*?<\/w:tr>/g, (row) => {
+    const text = row.replace(/<[^>]+>/g, '');
+    if (!/PF Employer Contribution|Gratuity Benefits/.test(text)) return row;
+
+    let done = false;
+    return row.replace(/(<w:t(?:\s[^>]*)?>)([56])(<\/w:t>)/, (match, open, digit, close) => {
+      if (done) return match;
+      done = true;
+      return `${open}${Number(digit) + offset}${close}`;
+    });
+  });
+}
+
+/**
+ * Adds the retention and relocation footnotes below the compensation table.
+ *
+ * They are placed after the existing "# Variable Pay will be paid yearly ..."
+ * note and styled to match it — italic, 9pt, same indent — so they read as
+ * part of the same block. Each appears only when its amount was entered.
+ */
+function addOptionalBenefitFootnotes(xml, notes) {
+  if (notes.length === 0) return xml;
+
+  const paragraphs = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)];
+  const anchor = paragraphs.find((m) =>
+    /Variable Pay will be paid yearly/.test(m[0].replace(/<[^>]+>/g, ''))
+  );
+  if (!anchor) return xml; // template changed — leave it alone
+
+  const rendered = notes
+    .map((note) =>
+      '<w:p><w:pPr><w:ind w:left="2"/><w:rPr><w:i/><w:sz w:val="18"/></w:rPr></w:pPr>'
+      + `<w:r><w:rPr><w:i/><w:sz w:val="18"/></w:rPr>`
+      + `<w:t xml:space="preserve">${escapeXml(note)}</w:t></w:r></w:p>`
+    )
+    .join('');
+
+  const insertAt = anchor.index + anchor[0].length;
+  return xml.slice(0, insertAt) + rendered + xml.slice(insertAt);
+}
+
 /**
  * Splits a merged run so the given substrings can be set in bold while the
  * text around them stays plain.
@@ -286,6 +416,22 @@ export async function generateOfferDocx(formData, breakdown) {
     formatNumber(breakdown.statutory.gratuity.yearly),
     formatNumber(breakdown.statutory.total.monthly),
     formatNumber(breakdown.statutory.total.yearly)
+  ]);
+
+  // Added after the positional {} placeholders are filled: these rows are
+  // clones carrying real values, so inserting them earlier would shift the
+  // placeholder ordering the compensation table depends on.
+  const retentionAmount = breakdown.optional.retention.yearly;
+  const relocationAmount = breakdown.optional.relocation.yearly;
+
+  xml = addOptionalBenefitRows(xml, [
+    { label: 'Retention Pay *', amount: retentionAmount },
+    { label: 'Relocation Bonus **', amount: relocationAmount }
+  ]);
+
+  xml = addOptionalBenefitFootnotes(xml, [
+    ...(retentionAmount > 0 ? [RETENTION_FOOTNOTE] : []),
+    ...(relocationAmount > 0 ? [RELOCATION_FOOTNOTE] : [])
   ]);
 
   xml = fillInsuranceAmounts(xml, [
