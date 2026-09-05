@@ -1,5 +1,8 @@
 import { unzipSync, zipSync, strToU8, strFromU8 } from 'fflate';
-import { formatNumber, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
+import {
+  formatNumber, formatDateSlashes, formatDateLong, formatDateLongHyphen, numberToWords
+} from './formatters';
+import { downloadBlob } from './downloadBlob';
 
 const TEMPLATE_URL = '/offer-letter-template.docx';
 const DOCUMENT_PART = 'word/document.xml';
@@ -20,7 +23,15 @@ function mergeRunsWithinParagraphs(xml) {
     if (textNodes.length < 2) return paragraph;
 
     const combined = textNodes.map((m) => m[1]).join('');
-    if (!combined.includes('{')) return paragraph;
+
+    // Only collapse the paragraph when a placeholder is actually split across
+    // runs. Merging unconditionally would flatten every run in the paragraph
+    // into one, throwing away the per-run formatting the template applies to
+    // individual words.
+    const hasSplitPlaceholder = /\{[^}]*$/.test(textNodes[0][1])
+      || textNodes.some((m, i) => i > 0 && /^[^{]*\}/.test(m[1]) && !m[1].includes('{'))
+      || (combined.includes('{') && !textNodes.some((m) => /\{[^}]*\}/.test(m[1])));
+    if (!hasSplitPlaceholder) return paragraph;
 
     let isFirst = true;
     return paragraph.replace(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g, () => {
@@ -107,6 +118,47 @@ function replacePostingCity(xml, city) {
   );
 }
 
+const SEMIBOLD_FONT = 'Segoe UI Semibold';
+
+/**
+ * Restyles the runs holding the given values as Segoe UI Semibold.
+ *
+ * The template sets the inline details in the offer sentence ({role}, the CTC,
+ * the amount in words, the joining date, the city) in plain bold rather than
+ * the Segoe UI Semibold used for the candidate's name, email and contact. This
+ * runs after substitution and matches on the filled values, so it restyles only
+ * those runs and leaves the surrounding bold words — "Data and AI!", "INR",
+ * "(Rupees", "Only)." — exactly as the template has them.
+ *
+ * Font size is left untouched: these sit inline in a 10pt sentence.
+ */
+function applySemiboldToValues(xml, values) {
+  const wanted = values
+    .map((value) => String(value ?? '').trim())
+    .filter((value) => value.length > 0);
+  if (wanted.length === 0) return xml;
+
+  return xml.replace(/<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g, (run) => {
+    const textMatch = run.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/);
+    if (!textMatch) return run;
+
+    const text = textMatch[1].trim();
+    if (!wanted.includes(text)) return run;
+    if (run.includes(`w:ascii="${SEMIBOLD_FONT}"`)) return run; // already semibold
+
+    if (/<w:rPr>/.test(run)) {
+      return run.replace(
+        /<w:rPr>/,
+        `<w:rPr><w:rFonts w:ascii="${SEMIBOLD_FONT}" w:hAnsi="${SEMIBOLD_FONT}"/>`
+      );
+    }
+    return run.replace(
+      /(<w:r(?:\s[^>]*)?>)/,
+      `$1<w:rPr><w:rFonts w:ascii="${SEMIBOLD_FONT}" w:hAnsi="${SEMIBOLD_FONT}"/></w:rPr>`
+    );
+  });
+}
+
 /**
  * Fills the Ganit offer letter Word template with the form's values.
  *
@@ -136,9 +188,11 @@ export async function generateOfferDocx(formData, breakdown) {
   // header uses for the offer date. Fill this one first, matching on the
   // "Joining" run that immediately precedes it, so the generic {date}
   // replacement below does not put today's date in the joining-date cell.
+  // Annexure 2 uses the hyphenated form (03-September-2026); page 1's offer
+  // sentence keeps the spaced form.
   xml = xml.replace(
     /(Joining<\/w:t>[\s\S]{0,1200}?<w:t(?:\s[^>]*)?>)\{\s*date\s*\}(<\/w:t>)/,
-    (_match, before, after) => `${before}${escapeXml(formatDateLong(formData.doj))}${after}`
+    (_match, before, after) => `${before}${escapeXml(formatDateLongHyphen(formData.doj))}${after}`
   );
 
   xml = fillNamedPlaceholders(xml, {
@@ -190,16 +244,22 @@ export async function generateOfferDocx(formData, breakdown) {
     formatNumber(breakdown.insurance.term)
   ]);
 
+  // Set the offer sentence's inline details in Segoe UI Semibold, matching
+  // the candidate's name, email and contact which the template already styles
+  // that way.
+  xml = applySemiboldToValues(xml, [
+    formData.role,
+    formatNumber(ctcAmount),
+    numberToWords(Math.floor(ctcAmount)),
+    formatDateLong(formData.doj),
+    String(formData.posting || '').trim()
+  ]);
+
   archive[DOCUMENT_PART] = strToU8(xml);
 
   const blob = new Blob([zipSync(archive)], {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
 
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `offer-letter-${formData.name.replace(/\s+/g, '-')}.docx`;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `offer-letter-${formData.name.replace(/\s+/g, '-')}.docx`);
 }

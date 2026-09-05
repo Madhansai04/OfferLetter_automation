@@ -3,6 +3,7 @@ import {
   PDFRawStream, PDFDict, PDFName, decodePDFRawStream
 } from 'pdf-lib';
 import { formatNumber, formatDateSlashes, formatDateLong, numberToWords } from './formatters';
+import { downloadBlob } from './downloadBlob';
 
 const WHITE = rgb(1, 1, 1);
 const BLACK = rgb(0.07, 0.07, 0.07);
@@ -323,12 +324,5 @@ export async function generateOfferPDF(formData, breakdown) {
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
   const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `offer-letter-${formData.name.replace(/\s+/g, '-')}.pdf`;
-  link.click();
-
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `offer-letter-${formData.name.replace(/\s+/g, '-')}.pdf`);
 }
