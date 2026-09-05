@@ -7,6 +7,7 @@ import { downloadBlob } from './downloadBlob';
 
 const TEMPLATE_URL = '/offer-letter-template.docx';
 const DOCUMENT_PART = 'word/document.xml';
+const FOOTER_PART = 'word/footer1.xml';
 
 /**
  * Word stores a run of text as <w:t>...</w:t>, but it may split a single
@@ -250,6 +251,64 @@ function addOptionalBenefitFootnotes(xml, notes) {
 }
 
 /**
+ * Removes the hardcoded "Private and Confidential | Page N of 4" paragraphs
+ * from the body.
+ *
+ * The template repeats that line as four ordinary paragraphs, one at the foot
+ * of each page, rather than putting it in the footer. When added rows push the
+ * content onto another page, that page gets the real footer (the website and
+ * email icons) but no confidentiality line, and the count is wrong besides.
+ * The line is re-added as a genuine footer by addFooterPageNumbers().
+ */
+function removeHardcodedPageFooters(xml) {
+  return xml.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const text = paragraph.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+    return /Private\s+and\s+Confidential\s*\|\s*Page\s+\d+\s+of\s+\d+/.test(text)
+      ? ''
+      : paragraph;
+  });
+}
+
+/**
+ * Adds "Private and Confidential | Page N of M" to the real footer, using
+ * Word's PAGE and NUMPAGES fields so it renders on every page and counts
+ * itself. Styling matches the paragraphs it replaces: 10pt text, a bold
+ * orange "|" separator, and bold page numbers.
+ *
+ * Word computes field results when the document is opened, so the values are
+ * marked dirty to force a refresh rather than shipping a stale cached number.
+ */
+function addFooterPageNumbers(footerXml) {
+  if (/PAGE\b/.test(footerXml)) return footerXml; // already present
+
+  const run = (text, props = '') =>
+    `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ''}`
+    + `<w:t xml:space="preserve">${text}</w:t></w:r>`;
+
+  const field = (instruction) =>
+    '<w:r><w:rPr><w:b/></w:rPr><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
+    + `<w:r><w:rPr><w:b/></w:rPr><w:instrText xml:space="preserve"> ${instruction} </w:instrText></w:r>`
+    + '<w:r><w:rPr><w:b/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r>'
+    + '<w:r><w:rPr><w:b/></w:rPr><w:t>1</w:t></w:r>'
+    + '<w:r><w:rPr><w:b/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>';
+
+  const separator = '<w:b/><w:color w:val="F79446"/><w:sz w:val="24"/>';
+  const body = '<w:sz w:val="20"/>';
+
+  const paragraph =
+    '<w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>'
+    + run('Private and Confidential ', body)
+    + run('| ', separator)
+    + run('Page ')
+    + field('PAGE')
+    + run(' of ')
+    + field('NUMPAGES')
+    + '</w:p>';
+
+  return footerXml.replace(/(<w:ftr[^>]*>)/, `$1${paragraph}`);
+}
+
+/**
  * Splits a merged run so the given substrings can be set in bold while the
  * text around them stays plain.
  *
@@ -448,6 +507,16 @@ export async function generateOfferDocx(formData, breakdown) {
     joiningDate: formatDateLong(formData.doj),
     city: String(formData.posting || '').trim()
   });
+
+  // The confidentiality line is hardcoded once per page in the body, so an
+  // overflow page would be left without it. Move it into the real footer,
+  // where Word repeats it on every page and numbers it correctly.
+  xml = removeHardcodedPageFooters(xml);
+
+  const footerPart = archive[FOOTER_PART];
+  if (footerPart) {
+    archive[FOOTER_PART] = strToU8(addFooterPageNumbers(strFromU8(footerPart)));
+  }
 
   archive[DOCUMENT_PART] = strToU8(xml);
 
