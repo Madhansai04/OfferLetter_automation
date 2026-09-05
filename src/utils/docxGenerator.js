@@ -283,12 +283,41 @@ function moveHeaderDateLeft(xml) {
  * The line is re-added as a genuine footer by addFooterPageNumbers().
  */
 function removeHardcodedPageFooters(xml) {
-  return xml.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (paragraph) => {
-    const text = paragraph.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
-    return /Private\s+and\s+Confidential\s*\|\s*Page\s+\d+\s+of\s+\d+/.test(text)
-      ? ''
-      : paragraph;
+  // Each of those lines is preceded by blank paragraphs whose only job was to
+  // push it down to the foot of its page — 13 of them before the page-4 line,
+  // around 5.5cm of padding. With the line moved into the real footer they do
+  // nothing but consume space, and on page 4 that padding is what tips the
+  // letter onto a fifth page once the retention and relocation rows are added.
+  // Dropping the run of blanks immediately before each line reclaims it.
+  const footerLine = /(?:<w:p(?:\s[^>]*)?>(?:(?!<\/w:p>)[\s\S])*?<\/w:p>)/g;
+
+  const paragraphs = [...xml.matchAll(footerLine)];
+  const doomed = new Set();
+
+  paragraphs.forEach((match, index) => {
+    const text = match[0].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+    if (!/Private\s+and\s+Confidential\s*\|\s*Page\s+\d+\s+of\s+\d+/.test(text)) return;
+
+    doomed.add(index);
+
+    // Walk backwards over the blank paragraphs that padded it into place.
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const previous = paragraphs[i][0];
+      if (previous.replace(/<[^>]+>/g, '').trim() !== '') break;
+      doomed.add(i);
+    }
   });
+
+  if (doomed.size === 0) return xml;
+
+  let cursor = 0;
+  let output = '';
+  paragraphs.forEach((match, index) => {
+    if (!doomed.has(index)) return;
+    output += xml.slice(cursor, match.index);
+    cursor = match.index + match[0].length;
+  });
+  return output + xml.slice(cursor);
 }
 
 /**
