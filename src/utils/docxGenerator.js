@@ -251,6 +251,28 @@ function addOptionalBenefitFootnotes(xml, notes) {
 }
 
 /**
+ * Moves the header's "Date:" left.
+ *
+ * The Ref and Date share one paragraph, with the Date positioned by a tab
+ * stop. The template sets that stop at 7554 twips — 13.3cm, about three
+ * quarters of the way across the text area — which leaves the Date stranded
+ * near the right margin. Ganit asked for it closer to the Ref, so the stop
+ * moves to 5500 twips (9.7cm, just past halfway), still clear of the
+ * reference number.
+ */
+function moveHeaderDateLeft(xml) {
+  return xml.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const text = paragraph.replace(/<[^>]+>/g, '');
+    if (!/Ref:/.test(text) || !/Date:/.test(text)) return paragraph;
+
+    return paragraph.replace(
+      /(<w:tab\b[^>]*w:pos=")\d+(")/,
+      (_match, before, after) => `${before}5500${after}`
+    );
+  });
+}
+
+/**
  * Removes the hardcoded "Private and Confidential | Page N of 4" paragraphs
  * from the body.
  *
@@ -511,6 +533,7 @@ export async function generateOfferDocx(formData, breakdown) {
   // The confidentiality line is hardcoded once per page in the body, so an
   // overflow page would be left without it. Move it into the real footer,
   // where Word repeats it on every page and numbers it correctly.
+  xml = moveHeaderDateLeft(xml);
   xml = removeHardcodedPageFooters(xml);
 
   const footerPart = archive[FOOTER_PART];
