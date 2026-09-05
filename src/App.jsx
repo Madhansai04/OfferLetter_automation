@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import OfferLetterForm from './components/OfferLetterForm';
 import PDFPreview from './components/PDFPreview';
-import { generateOfferPDF } from './utils/pdfGenerator';
 import { generateOfferDocx } from './utils/docxGenerator';
 import { calculateCTCBreakdown } from './utils/calculator';
 import './styles/App.css';
@@ -22,7 +21,6 @@ export default function App() {
 
   const [breakdown, setBreakdown] = useState(null);
   const [error, setError] = useState('');
-  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [generatingDocx, setGeneratingDocx] = useState(false);
 
   function recalculate(data) {
@@ -83,25 +81,6 @@ export default function App() {
     return '';
   };
 
-  const handleDownloadPdf = async () => {
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setGeneratingPdf(true);
-    setError('');
-    try {
-      await generateOfferPDF(formData, breakdown);
-    } catch (err) {
-      setError('Error generating PDF: ' + err.message);
-      console.error(err);
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
-
   const handleDownloadDocx = async () => {
     const validationError = validateForm();
     if (validationError) {
@@ -139,11 +118,8 @@ export default function App() {
           />
 
           <div className="download-buttons">
-            <button className="btn-download" onClick={handleDownloadPdf} disabled={generatingPdf}>
-              {generatingPdf ? 'Generating...' : 'Download PDF'}
-            </button>
-            <button className="btn-download btn-download-secondary" onClick={handleDownloadDocx} disabled={generatingDocx}>
-              {generatingDocx ? 'Generating...' : 'Download Word'}
+            <button className="btn-download" onClick={handleDownloadDocx} disabled={generatingDocx}>
+              {generatingDocx ? 'Generating...' : 'Download Offer Letter'}
             </button>
           </div>
         </div>
