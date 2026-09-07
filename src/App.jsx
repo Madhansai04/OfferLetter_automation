@@ -141,12 +141,6 @@ export default function App() {
                 <span>CTC (Per Annum)</span>
                 <span>{formatCurrency(breakdown.totalCTC)}</span>
               </div>
-              {breakdown.optional.relocation.show && (
-                <div className="ctc-summary-note">
-                  Relocation bonus of {formatCurrency(breakdown.optional.relocation.yearly)} is
-                  paid over and above the CTC.
-                </div>
-              )}
             </div>
           )}
 
