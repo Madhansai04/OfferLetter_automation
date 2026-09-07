@@ -51,13 +51,13 @@ export default function OfferLetterForm({ formData, onChange }) {
         />
 
         <FormField
-          label="CTC (Lakhs) *"
-          name="ctc"
+          label="Fixed Pay (₹) *"
+          name="fixedPay"
           type="number"
-          placeholder="12.5"
-          value={formData.ctc}
+          placeholder="450000"
+          value={formData.fixedPay}
           onChange={onChange}
-          step="0.1"
+          step="1000"
           min="1"
           required
         />

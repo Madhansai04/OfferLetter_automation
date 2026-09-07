@@ -470,7 +470,9 @@ export async function generateOfferDocx(formData, breakdown) {
   }
 
   const today = new Date();
-  const ctcAmount = formData.ctc * 100000;
+  // The CTC is derived from the entered fixed pay, so take it from the
+  // breakdown rather than recomputing it here — one source of truth.
+  const ctcAmount = breakdown.totalCTC;
 
   let xml = mergeRunsWithinParagraphs(strFromU8(documentPart));
 

@@ -274,6 +274,37 @@ body {
   font-weight: 600;
 }
 
+/* Derived CTC, shown under the form so it updates as the amounts are typed. */
+.ctc-summary {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--gray-50);
+  font-size: 14px;
+}
+
+.ctc-summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.ctc-summary-total {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 2px solid var(--primary);
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 16px;
+}
+
+.ctc-summary-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .download-buttons {
   display: flex;
   gap: 12px;

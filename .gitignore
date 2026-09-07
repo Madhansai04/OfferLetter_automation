@@ -13,6 +13,9 @@ dist-ssr
 *.local
 ruvector.db
 
+# Word lock files, created while a .docx is open
+~$*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

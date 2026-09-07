@@ -3,6 +3,7 @@ import OfferLetterForm from './components/OfferLetterForm';
 import PDFPreview from './components/PDFPreview';
 import { generateOfferDocx } from './utils/docxGenerator';
 import { calculateCTCBreakdown } from './utils/calculator';
+import { formatCurrency } from './utils/formatters';
 import './styles/App.css';
 
 export default function App() {
@@ -11,7 +12,7 @@ export default function App() {
     email: '',
     phone: '',
     role: '',
-    ctc: '',
+    fixedPay: '',
     variableAmount: '',
     doj: '',
     posting: '',
@@ -24,13 +25,13 @@ export default function App() {
   const [generatingDocx, setGeneratingDocx] = useState(false);
 
   function recalculate(data) {
-    if (!data.ctc) {
+    if (!data.fixedPay) {
       setBreakdown(null);
       return;
     }
     try {
       const calc = calculateCTCBreakdown(
-        parseFloat(data.ctc),
+        parseFloat(data.fixedPay),
         data.variableAmount ? parseFloat(data.variableAmount) : 0,
         data.retentionAmount ? parseFloat(data.retentionAmount) : 0,
         data.relocationAmount ? parseFloat(data.relocationAmount) : 0
@@ -48,7 +49,7 @@ export default function App() {
     setError('');
 
     if (
-      name === 'ctc' ||
+      name === 'fixedPay' ||
       name === 'variableAmount' ||
       name === 'retentionAmount' ||
       name === 'relocationAmount'
@@ -62,21 +63,14 @@ export default function App() {
     if (!formData.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) return 'Valid email required';
     if (!formData.phone.match(/^\+?[1-9]\d{1,14}$/)) return 'Valid phone required';
     if (!formData.role.trim()) return 'Designation is required';
-    if (!formData.ctc || parseFloat(formData.ctc) <= 0) return 'Valid CTC required';
+    if (!formData.fixedPay || parseFloat(formData.fixedPay) <= 0) {
+      return 'Valid fixed pay required';
+    }
     if (formData.variableAmount === '' || parseFloat(formData.variableAmount) < 0) {
       return 'Variable pay is required (enter 0 if none)';
     }
     if (!formData.doj) return 'Date of joining is required';
     if (!formData.posting.trim()) return 'Posting location is required';
-
-    // Relocation is paid over and above the CTC, so it is not deducted here.
-    const ctc = parseFloat(formData.ctc) * 100000;
-    const deductions =
-      (parseFloat(formData.variableAmount) || 0) +
-      (parseFloat(formData.retentionAmount) || 0);
-    if (deductions >= ctc) {
-      return 'Variable pay + retention must be less than the CTC';
-    }
 
     return '';
   };
@@ -116,6 +110,35 @@ export default function App() {
             formData={formData}
             onChange={handleFormChange}
           />
+
+          {breakdown && (
+            <div className="ctc-summary">
+              <div className="ctc-summary-row">
+                <span>Fixed Pay</span>
+                <span>{formatCurrency(breakdown.fixedPay.yearly)}</span>
+              </div>
+              <div className="ctc-summary-row">
+                <span>Variable Pay</span>
+                <span>{formatCurrency(breakdown.variable.yearly)}</span>
+              </div>
+              {breakdown.optional.retention.show && (
+                <div className="ctc-summary-row">
+                  <span>Retention Pay</span>
+                  <span>{formatCurrency(breakdown.optional.retention.yearly)}</span>
+                </div>
+              )}
+              <div className="ctc-summary-row ctc-summary-total">
+                <span>CTC (Per Annum)</span>
+                <span>{formatCurrency(breakdown.totalCTC)}</span>
+              </div>
+              {breakdown.optional.relocation.show && (
+                <div className="ctc-summary-note">
+                  Relocation bonus of {formatCurrency(breakdown.optional.relocation.yearly)} is
+                  paid over and above the CTC.
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="download-buttons">
             <button className="btn-download" onClick={handleDownloadDocx} disabled={generatingDocx}>

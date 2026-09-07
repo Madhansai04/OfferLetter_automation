@@ -10,7 +10,7 @@ import { calculateCTCBreakdown } from './calculator.js';
  * If these ever fail, the calculator has drifted from the official workbook.
  */
 describe('calculateCTCBreakdown — parity with CTC Calculator Final 2.xlsm', () => {
-  const r = calculateCTCBreakdown(5, 50000, 0, 0);
+  const r = calculateCTCBreakdown(450000, 50000, 0, 0);
 
   it('solves monthly Basic to the workbook value (Excel D8)', () => {
     expect(r.fixed.basic.monthly).toBeCloseTo(17334.859154929574, 6);
@@ -47,14 +47,14 @@ describe('calculateCTCBreakdown — parity with CTC Calculator Final 2.xlsm', ()
 
 describe('PF formula boundaries', () => {
   it('caps the 12% component at 1800 for high Basic', () => {
-    const r = calculateCTCBreakdown(50, 200000, 0, 0);
+    const r = calculateCTCBreakdown(4800000, 200000, 0, 0);
     // Basic will be well above 15000/month here
     expect(r.statutory.pf.monthly).toBeCloseTo(1800 + 150, 6);
   });
 
   it('uses 1% (not flat 150) when Basic is below 15000/month', () => {
-    // Small CTC keeps monthly Basic under 15,000
-    const r = calculateCTCBreakdown(3, 0, 0, 0);
+    // Small fixed pay keeps monthly Basic under 15,000
+    const r = calculateCTCBreakdown(300000, 0, 0, 0);
     expect(r.fixed.basic.monthly).toBeLessThan(15000);
     const expectedPf =
       Math.min(r.fixed.basic.monthly * 0.12, 1800) + r.fixed.basic.monthly * 0.01;
@@ -62,17 +62,24 @@ describe('PF formula boundaries', () => {
   });
 });
 
-describe('pool deductions', () => {
-  it('subtracts variable and retention from the split pool', () => {
-    const r = calculateCTCBreakdown(6, 50000, 100000, 0);
-    // CTC 6,00,000 - 50,000 variable - 1,00,000 retention = 4,50,000 pool
+describe('CTC derived from fixed pay', () => {
+  it('adds variable and retention to the entered fixed pay', () => {
+    const r = calculateCTCBreakdown(450000, 50000, 100000, 0);
+    // 4,50,000 fixed + 50,000 variable + 1,00,000 retention = 6,00,000 CTC
     expect(r.verification.fixedPoolRequired).toBe(450000);
+    expect(r.totalCTC).toBe(600000);
     expect(r.fixed.total.yearly + r.statutory.total.yearly).toBeCloseTo(450000, 4);
   });
 
+  it('reports the fixed pay it was given', () => {
+    const r = calculateCTCBreakdown(450000, 50000, 0, 0);
+    expect(r.fixedPay.yearly).toBe(450000);
+    expect(r.fixedPay.monthly).toBeCloseTo(37500, 6);
+  });
+
   it('does NOT subtract relocation — it is paid over and above the CTC', () => {
-    const withoutRelocation = calculateCTCBreakdown(6, 50000, 100000, 0);
-    const withRelocation = calculateCTCBreakdown(6, 50000, 100000, 200000);
+    const withoutRelocation = calculateCTCBreakdown(450000, 50000, 100000, 0);
+    const withRelocation = calculateCTCBreakdown(450000, 50000, 100000, 200000);
 
     // Adding a relocation bonus must not shrink the pool or change any
     // salary component.
@@ -87,8 +94,8 @@ describe('pool deductions', () => {
   });
 
   it('relocation changes nothing except its own line, at any amount', () => {
-    const none = calculateCTCBreakdown(12, 50000, 50000, 0);
-    const large = calculateCTCBreakdown(12, 50000, 50000, 500000);
+    const none = calculateCTCBreakdown(1100000, 50000, 50000, 0);
+    const large = calculateCTCBreakdown(1100000, 50000, 50000, 500000);
 
     // Every number the letter prints, other than the relocation line itself,
     // must be identical whether or not a relocation bonus is offered.
@@ -119,25 +126,25 @@ describe('pool deductions', () => {
   });
 
   it('never folds relocation into the CTC total', () => {
-    const r = calculateCTCBreakdown(12, 50000, 50000, 500000);
-    // The CTC stays exactly what was entered, regardless of relocation.
+    const r = calculateCTCBreakdown(1100000, 50000, 50000, 500000);
+    // The CTC is fixed + variable + retention, with relocation excluded.
     expect(r.totalCTC).toBe(1200000);
     expect(r.totalMonthly).toBeCloseTo(100000, 6);
   });
 
   it('reconciles components + variable + retention to CTC, relocation aside', () => {
-    const r = calculateCTCBreakdown(6, 50000, 100000, 200000);
+    const r = calculateCTCBreakdown(450000, 50000, 100000, 200000);
     expect(r.verification.reconciles).toBe(true);
     expect(r.fixed.total.yearly + r.statutory.total.yearly + r.variable.yearly + r.optional.retention.yearly)
       .toBeCloseTo(600000, 4);
   });
 
   it('flags retention and relocation only when non-zero', () => {
-    const none = calculateCTCBreakdown(12.5, 50000, 0, 0);
+    const none = calculateCTCBreakdown(1200000, 50000, 0, 0);
     expect(none.optional.retention.show).toBe(false);
     expect(none.optional.relocation.show).toBe(false);
 
-    const both = calculateCTCBreakdown(12.5, 50000, 100000, 50000);
+    const both = calculateCTCBreakdown(1100000, 50000, 100000, 50000);
     expect(both.optional.retention.show).toBe(true);
     expect(both.optional.relocation.show).toBe(true);
   });
@@ -148,30 +155,30 @@ describe('insurance tiers', () => {
   const atOrAbove = { medical: 500000, personalAccident: 1000000, term: 2000000 };
 
   it('uses the lower tier below 10 LPA', () => {
-    expect(calculateCTCBreakdown(9, 50000, 0, 0).insurance).toEqual(below);
+    expect(calculateCTCBreakdown(850000, 50000, 0, 0).insurance).toEqual(below);
   });
 
   it('uses the lower tier just under the threshold', () => {
-    expect(calculateCTCBreakdown(9.99, 50000, 0, 0).insurance).toEqual(below);
+    expect(calculateCTCBreakdown(949000, 50000, 0, 0).insurance).toEqual(below);
   });
 
   it('uses the higher tier exactly at 10 LPA', () => {
-    expect(calculateCTCBreakdown(10, 50000, 0, 0).insurance).toEqual(atOrAbove);
+    expect(calculateCTCBreakdown(950000, 50000, 0, 0).insurance).toEqual(atOrAbove);
   });
 
   it('uses the higher tier above 10 LPA', () => {
-    expect(calculateCTCBreakdown(12.5, 50000, 0, 0).insurance).toEqual(atOrAbove);
+    expect(calculateCTCBreakdown(1200000, 50000, 0, 0).insurance).toEqual(atOrAbove);
   });
 
   it('keeps personal accident cover identical across both tiers', () => {
-    expect(calculateCTCBreakdown(5, 50000, 0, 0).insurance.personalAccident)
-      .toBe(calculateCTCBreakdown(20, 50000, 0, 0).insurance.personalAccident);
+    expect(calculateCTCBreakdown(450000, 50000, 0, 0).insurance.personalAccident)
+      .toBe(calculateCTCBreakdown(1950000, 50000, 0, 0).insurance.personalAccident);
   });
 });
 
 describe('Annexure 2 grouping', () => {
   it('keeps PF and gratuity out of Total Fixed Pay Component', () => {
-    const r = calculateCTCBreakdown(5, 50000, 0, 0);
+    const r = calculateCTCBreakdown(450000, 50000, 0, 0);
     const fixedOnly =
       r.fixed.basic.monthly + r.fixed.hra.monthly + r.fixed.conveyance.monthly;
     expect(r.fixed.total.monthly).toBeCloseTo(fixedOnly, 6);

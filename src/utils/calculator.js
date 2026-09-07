@@ -14,15 +14,18 @@
  * Excel cell references are noted against each formula.
  */
 
-// The pool that gets split into salary components.
-// Workbook: H4 = SUM(H5:H7) => CTC = FixedSalary + Variable + Retention,
-// i.e. the split pool is CTC minus the "other components".
+// Workbook: H4 = SUM(H5:H7) => CTC = FixedSalary + Variable + Retention.
+//
+// Fixed pay is the figure HR enters, and the CTC is derived from it. It is the
+// workbook's "Fixed Salary": the pool that the Basic goal-seek solves against,
+// covering Basic + HRA + Conveyance + PF + Gratuity. Note that is a larger
+// figure than the letter's "Total Fixed Pay Component" row, which shows only
+// Basic + HRA + Conveyance.
 //
 // Relocation bonus is deliberately excluded: it is paid over and above the
-// CTC rather than out of it, so it does not reduce what is available to
-// split across Basic/HRA/Conveyance/PF/Gratuity.
-function fixedSalaryPool(ctc, variable, retention) {
-  return ctc - variable - retention;
+// CTC rather than out of it.
+function ctcFromFixedPay(fixedPay, variable, retention) {
+  return fixedPay + variable + retention;
 }
 
 // Excel D11: IF(($D$8*12%)>=1800,1800,$D$8*12%) + IF($D$8>=15000,150,($D$8*1%))
@@ -87,19 +90,20 @@ const INSURANCE_TIERS = {
 };
 
 /**
- * @param {number} ctcLakhs      CTC in lakhs (e.g. 12.5)
+ * @param {number} fixedPayRupees   Fixed pay, plain rupees (e.g. 450000).
+ *   The workbook's "Fixed Salary": Basic + HRA + Conveyance + PF + Gratuity.
  * @param {number} variableRupees   Variable pay, plain rupees (e.g. 50000)
  * @param {number} retentionRupees  Retention pay, plain rupees
  * @param {number} relocationRupees Relocation bonus, plain rupees
  */
 export function calculateCTCBreakdown(
-  ctcLakhs,
+  fixedPayRupees,
   variableRupees = 0,
   retentionRupees = 0,
   relocationRupees = 0
 ) {
-  const ctc = ctcLakhs * 100000;
-  const fixedPool = fixedSalaryPool(ctc, variableRupees, retentionRupees);
+  const fixedPool = fixedPayRupees;
+  const ctc = ctcFromFixedPay(fixedPool, variableRupees, retentionRupees);
 
   const basicMonthly = solveBasicMonthly(fixedPool);
   const c = componentsFromBasic(basicMonthly);
@@ -110,7 +114,8 @@ export function calculateCTCBreakdown(
   const totalFixedMonthly = c.basicMonthly + c.hraMonthly + c.conveyanceMonthly;
   const totalBenefitMonthly = c.pfMonthly + c.gratuityMonthly;
 
-  const insurance = ctcLakhs >= INSURANCE_TIERS.thresholdLakhs
+  // The tier is decided by the derived CTC, not the fixed pay alone.
+  const insurance = ctc >= INSURANCE_TIERS.thresholdLakhs * 100000
     ? INSURANCE_TIERS.atOrAboveThreshold
     : INSURANCE_TIERS.belowThreshold;
 
@@ -143,6 +148,10 @@ export function calculateCTCBreakdown(
       }
     },
     insurance,
+
+    // The fixed pay HR entered, which the CTC is derived from.
+    fixedPay: { monthly: fixedPool / 12, yearly: fixedPool },
+
     totalCTC: ctc,
     totalMonthly: ctc / 12,
 

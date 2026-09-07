@@ -24,7 +24,7 @@ export default function PDFPreview({ formData, breakdown }) {
 
         <p>
           <strong>Congratulations.</strong> We are pleased to offer you a full-time role as <strong>{formData.role}</strong>.
-          Your annual Compensation of <strong>{formatCurrency(formData.ctc * 100000)}</strong> ({numberToWords(Math.floor(formData.ctc * 100000))}).
+          Your annual Compensation of <strong>{formatCurrency(breakdown.totalCTC)}</strong> ({numberToWords(Math.floor(breakdown.totalCTC))}).
           You will join Ganit on <strong>{formatDateLong(formData.doj)}</strong> and your position is work from <strong>{formData.posting}</strong>.
         </p>
       </div>
