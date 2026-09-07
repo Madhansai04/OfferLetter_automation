@@ -17,7 +17,8 @@ export default function App() {
     doj: '',
     posting: '',
     retentionAmount: '',
-    relocationAmount: ''
+    relocationAmount: '',
+    joiningBonusAmount: ''
   });
 
   const [breakdown, setBreakdown] = useState(null);
@@ -34,7 +35,8 @@ export default function App() {
         parseFloat(data.fixedPay),
         data.variableAmount ? parseFloat(data.variableAmount) : 0,
         data.retentionAmount ? parseFloat(data.retentionAmount) : 0,
-        data.relocationAmount ? parseFloat(data.relocationAmount) : 0
+        data.relocationAmount ? parseFloat(data.relocationAmount) : 0,
+        data.joiningBonusAmount ? parseFloat(data.joiningBonusAmount) : 0
       );
       setBreakdown(calc);
     } catch (err) {
@@ -52,7 +54,8 @@ export default function App() {
       name === 'fixedPay' ||
       name === 'variableAmount' ||
       name === 'retentionAmount' ||
-      name === 'relocationAmount'
+      name === 'relocationAmount' ||
+      name === 'joiningBonusAmount'
     ) {
       recalculate(newData);
     }
@@ -134,6 +137,12 @@ export default function App() {
               {breakdown.optional.relocation.show && (
                 <div className="ctc-summary-note">
                   Relocation bonus of {formatCurrency(breakdown.optional.relocation.yearly)} is
+                  paid over and above the CTC.
+                </div>
+              )}
+              {breakdown.optional.joiningBonus.show && (
+                <div className="ctc-summary-note">
+                  Joining bonus of {formatCurrency(breakdown.optional.joiningBonus.yearly)} is
                   paid over and above the CTC.
                 </div>
               )}

@@ -118,6 +118,17 @@ export default function OfferLetterForm({ formData, onChange }) {
           step="1000"
           min="0"
         />
+
+        <FormField
+          label="Joining Bonus (₹) - Leave blank if none"
+          name="joiningBonusAmount"
+          type="number"
+          placeholder="0"
+          value={formData.joiningBonusAmount}
+          onChange={onChange}
+          step="1000"
+          min="0"
+        />
       </fieldset>
     </form>
   );

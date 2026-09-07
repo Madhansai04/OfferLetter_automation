@@ -129,8 +129,14 @@ const RELOCATION_FOOTNOTE =
   + 'complete 1 month from date of joining and will be recovered if you resign within '
   + '12 months from the date of joining.';
 
+const JOINING_BONUS_FOOTNOTE =
+  '*** Joining bonus will be paid during the subsequent payroll after employees '
+  + 'complete 1 month from date of joining and will be recovered if you resign within '
+  + '12 months from the date of joining.';
+
 /**
- * Adds Retention Pay and Relocation Bonus rows to the compensation table.
+ * Adds the optional benefit rows (retention, relocation, joining bonus) to
+ * the compensation table.
  *
  * The template has no rows for them, so the Variable Pay row is cloned: the
  * same three cells, the same widths, and the same gridSpan=4 merged value cell
@@ -223,7 +229,7 @@ function renumberStatutoryRows(xml, offset) {
 }
 
 /**
- * Adds the retention and relocation footnotes below the compensation table.
+ * Adds the optional benefit footnotes below the compensation table.
  *
  * They are placed after the existing "# Variable Pay will be paid yearly ..."
  * note and styled to match it — italic, 9pt, same indent — so they read as
@@ -535,15 +541,18 @@ export async function generateOfferDocx(formData, breakdown) {
   // placeholder ordering the compensation table depends on.
   const retentionAmount = breakdown.optional.retention.yearly;
   const relocationAmount = breakdown.optional.relocation.yearly;
+  const joiningBonusAmount = breakdown.optional.joiningBonus.yearly;
 
   xml = addOptionalBenefitRows(xml, [
     { label: 'Retention Pay *', amount: retentionAmount },
-    { label: 'Relocation Bonus **', amount: relocationAmount }
+    { label: 'Relocation Bonus **', amount: relocationAmount },
+    { label: 'Joining Bonus ***', amount: joiningBonusAmount }
   ]);
 
   xml = addOptionalBenefitFootnotes(xml, [
     ...(retentionAmount > 0 ? [RETENTION_FOOTNOTE] : []),
-    ...(relocationAmount > 0 ? [RELOCATION_FOOTNOTE] : [])
+    ...(relocationAmount > 0 ? [RELOCATION_FOOTNOTE] : []),
+    ...(joiningBonusAmount > 0 ? [JOINING_BONUS_FOOTNOTE] : [])
   ]);
 
   xml = fillInsuranceAmounts(xml, [

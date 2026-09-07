@@ -22,8 +22,8 @@
 // figure than the letter's "Total Fixed Pay Component" row, which shows only
 // Basic + HRA + Conveyance.
 //
-// Relocation bonus is deliberately excluded: it is paid over and above the
-// CTC rather than out of it.
+// Relocation and joining bonuses are deliberately excluded: they are paid
+// over and above the CTC rather than out of it.
 function ctcFromFixedPay(fixedPay, variable, retention) {
   return fixedPay + variable + retention;
 }
@@ -95,12 +95,14 @@ const INSURANCE_TIERS = {
  * @param {number} variableRupees   Variable pay, plain rupees (e.g. 50000)
  * @param {number} retentionRupees  Retention pay, plain rupees
  * @param {number} relocationRupees Relocation bonus, plain rupees
+ * @param {number} joiningBonusRupees Joining bonus, plain rupees
  */
 export function calculateCTCBreakdown(
   fixedPayRupees,
   variableRupees = 0,
   retentionRupees = 0,
-  relocationRupees = 0
+  relocationRupees = 0,
+  joiningBonusRupees = 0
 ) {
   const fixedPool = fixedPayRupees;
   const ctc = ctcFromFixedPay(fixedPool, variableRupees, retentionRupees);
@@ -145,6 +147,11 @@ export function calculateCTCBreakdown(
         monthly: relocationRupees / 12,
         yearly: relocationRupees,
         show: relocationRupees > 0
+      },
+      joiningBonus: {
+        monthly: joiningBonusRupees / 12,
+        yearly: joiningBonusRupees,
+        show: joiningBonusRupees > 0
       }
     },
     insurance,
@@ -156,8 +163,8 @@ export function calculateCTCBreakdown(
     totalMonthly: ctc / 12,
 
     // Sanity check: the split components plus variable and retention must
-    // reconcile to the CTC. Relocation is excluded because it is paid over
-    // and above the CTC, not out of it.
+    // reconcile to the CTC. Relocation and joining bonuses are excluded
+    // because they are paid over and above the CTC, not out of it.
     verification: {
       fixedPoolRequired: fixedPool,
       fixedPoolCalculated: c.totalAnnual,

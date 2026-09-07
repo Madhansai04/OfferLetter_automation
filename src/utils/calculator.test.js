@@ -148,6 +148,49 @@ describe('CTC derived from fixed pay', () => {
     expect(both.optional.retention.show).toBe(true);
     expect(both.optional.relocation.show).toBe(true);
   });
+
+  it('never folds the joining bonus into the CTC total', () => {
+    const r = calculateCTCBreakdown(1100000, 50000, 50000, 0, 300000);
+    // The CTC is fixed + variable + retention; the joining bonus is excluded.
+    expect(r.totalCTC).toBe(1200000);
+    expect(r.totalMonthly).toBeCloseTo(100000, 6);
+    expect(r.optional.joiningBonus.yearly).toBe(300000);
+  });
+
+  it('joining bonus changes nothing except its own line, at any amount', () => {
+    const without = calculateCTCBreakdown(450000, 50000, 100000, 0, 0);
+    const with_ = calculateCTCBreakdown(450000, 50000, 100000, 0, 250000);
+
+    // Every number the letter prints, other than the joining bonus line
+    // itself, must be identical whether or not a joining bonus is offered.
+    expect(with_.totalCTC).toBe(without.totalCTC);
+    expect(with_.verification.fixedPoolRequired).toBe(450000);
+    expect(with_.fixed.basic.monthly).toBeCloseTo(without.fixed.basic.monthly, 6);
+    expect(with_.fixed.total.yearly).toBeCloseTo(without.fixed.total.yearly, 6);
+    expect(with_.statutory.total.yearly).toBeCloseTo(without.statutory.total.yearly, 6);
+    expect(with_.insurance).toEqual(without.insurance);
+    expect(with_.verification.reconciles).toBe(true);
+  });
+
+  it('flags the joining bonus only when non-zero', () => {
+    expect(calculateCTCBreakdown(1200000, 50000, 0, 0, 0).optional.joiningBonus.show)
+      .toBe(false);
+    expect(calculateCTCBreakdown(1200000, 50000, 0, 0, 75000).optional.joiningBonus.show)
+      .toBe(true);
+  });
+
+  it('keeps relocation and joining bonus independent of each other', () => {
+    const r = calculateCTCBreakdown(900000, 50000, 75000, 40000, 60000);
+    expect(r.totalCTC).toBe(1025000);
+    expect(r.optional.relocation.yearly).toBe(40000);
+    expect(r.optional.joiningBonus.yearly).toBe(60000);
+  });
+
+  it('defaults the joining bonus to zero when the argument is omitted', () => {
+    const r = calculateCTCBreakdown(450000, 50000);
+    expect(r.optional.joiningBonus.yearly).toBe(0);
+    expect(r.optional.joiningBonus.show).toBe(false);
+  });
 });
 
 describe('insurance tiers', () => {

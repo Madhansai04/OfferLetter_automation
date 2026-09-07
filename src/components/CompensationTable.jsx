@@ -3,6 +3,16 @@ import { formatCurrency } from '../utils/formatters';
 export default function CompensationTable({ breakdown }) {
   if (!breakdown) return null;
 
+  // Same labels and order as the Word letter, so the preview matches what
+  // downloads. Only the ones with an amount entered are shown.
+  const optionalBenefits = [
+    { label: 'Retention Pay *', amount: breakdown.optional.retention.yearly },
+    { label: 'Relocation Bonus **', amount: breakdown.optional.relocation.yearly },
+    { label: 'Joining Bonus ***', amount: breakdown.optional.joiningBonus.yearly }
+  ].filter((benefit) => benefit.amount > 0);
+
+  const hasOptionalBenefits = optionalBenefits.length > 0;
+
   return (
     <div className="compensation-wrapper">
       <table className="compensation-table">
@@ -46,31 +56,27 @@ export default function CompensationTable({ breakdown }) {
             <td colSpan="3"><strong>VARIABLE</strong></td>
           </tr>
 
-          {/* Variable, retention and relocation are single annual amounts,
+          {/* Variable and the optional benefits are single annual amounts,
               not split monthly/yearly, so their value spans both columns. */}
           <tr>
             <td>Variable Pay</td>
             <td colSpan="2">{formatCurrency(breakdown.variable.yearly)}</td>
           </tr>
 
-          {breakdown.optional.retention.show && (
-            <>
-              <tr className="section-header">
-                <td colSpan="3"><strong>OPTIONAL BENEFITS</strong></td>
-              </tr>
-              <tr className="optional-row">
-                <td><strong>Retention Pay *</strong></td>
-                <td colSpan="2"><strong>{formatCurrency(breakdown.optional.retention.yearly)}</strong></td>
-              </tr>
-            </>
-          )}
-
-          {breakdown.optional.relocation.show && (
-            <tr className="optional-row">
-              <td><strong>Relocation Bonus **</strong></td>
-              <td colSpan="2"><strong>{formatCurrency(breakdown.optional.relocation.yearly)}</strong></td>
+          {/* The section header belongs to the group, not to any one row, so
+              it is driven by whether any optional benefit was entered. */}
+          {hasOptionalBenefits && (
+            <tr className="section-header">
+              <td colSpan="3"><strong>OPTIONAL BENEFITS</strong></td>
             </tr>
           )}
+
+          {optionalBenefits.map((benefit) => (
+            <tr className="optional-row" key={benefit.label}>
+              <td><strong>{benefit.label}</strong></td>
+              <td colSpan="2"><strong>{formatCurrency(benefit.amount)}</strong></td>
+            </tr>
+          ))}
 
           <tr className="section-header">
             <td colSpan="3"><strong>STATUTORY BENEFITS</strong></td>
@@ -127,6 +133,13 @@ export default function CompensationTable({ breakdown }) {
         {breakdown.optional.relocation.show && (
           <p className="footnote">
             <strong>** Relocation bonus</strong> will be paid during the subsequent payroll after employees
+            complete 1 month from date of joining and will be recovered if you resign within 12 months from the date of joining.
+          </p>
+        )}
+
+        {breakdown.optional.joiningBonus.show && (
+          <p className="footnote">
+            <strong>*** Joining bonus</strong> will be paid during the subsequent payroll after employees
             complete 1 month from date of joining and will be recovered if you resign within 12 months from the date of joining.
           </p>
         )}
