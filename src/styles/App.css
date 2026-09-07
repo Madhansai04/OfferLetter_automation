@@ -1,0 +1,371 @@
+:root {
+  --primary: #1a00d9;
+  --primary-medium: #5e9eff;
+  --secondary: #fe6e06;
+  --light: #dbeaff;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --border: #d1d5db;
+  --error: #dc2626;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--gray-50);
+  color: #111827;
+}
+
+.header {
+  background-color: var(--primary);
+  color: white;
+  padding: 20px 40px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  height: 40px;
+  width: auto;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.main-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px;
+}
+
+.form-section {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.form-section h2 {
+  color: var(--primary);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--light);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form fieldset {
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 6px;
+  background-color: var(--gray-50);
+}
+
+.form legend {
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 12px;
+  padding: 0 8px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--light);
+}
+
+.preview-section {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.preview-section h2 {
+  color: var(--primary);
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--light);
+}
+
+.preview-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  background-color: var(--gray-50);
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  color: #666;
+  text-align: center;
+}
+
+.preview-box {
+  background-color: var(--gray-50);
+  padding: 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.preview-page {
+  background: white;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.preview-header {
+  font-weight: 600;
+  color: var(--primary);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.preview-candidate-info {
+  background-color: var(--light);
+  padding: 12px;
+  border-radius: 4px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+
+.compensation-wrapper {
+  font-size: 12px;
+}
+
+.compensation-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+.compensation-table thead {
+  background-color: var(--light);
+  border-bottom: 2px solid var(--primary);
+}
+
+.compensation-table th {
+  padding: 8px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--primary);
+  border: 1px solid var(--border);
+}
+
+.compensation-table td {
+  padding: 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.compensation-table tbody tr:nth-child(even) {
+  background-color: var(--gray-50);
+}
+
+.section-header {
+  background-color: var(--light);
+  font-weight: 600;
+}
+
+.section-header td {
+  padding: 10px 8px;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.total-row {
+  background-color: var(--gray-100);
+  font-weight: 600;
+}
+
+.optional-row {
+  background-color: #fff3cd;
+  font-weight: 600;
+}
+
+.insurance-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.insurance-section h4 {
+  font-size: 12px;
+  margin-bottom: 10px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.insurance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.insurance-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+}
+
+.footnotes {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.footnote {
+  font-size: 10px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  color: #555;
+}
+
+.footnote strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Derived CTC, shown under the form so it updates as the amounts are typed. */
+.ctc-summary {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--gray-50);
+  font-size: 14px;
+}
+
+.ctc-summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.ctc-summary-total {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 2px solid var(--primary);
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 16px;
+}
+
+.ctc-summary-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.download-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn-download {
+  flex: 1;
+  padding: 12px 20px;
+  background-color: var(--secondary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-download:hover {
+  background-color: #d85a00;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(254, 110, 6, 0.3);
+}
+
+.btn-download-secondary {
+  background-color: var(--primary);
+}
+
+.btn-download-secondary:hover {
+  background-color: #1400ad;
+  box-shadow: 0 4px 12px rgba(26, 0, 217, 0.3);
+}
+
+.btn-download:disabled {
+  background-color: var(--border);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.error-message {
+  background-color: #fee;
+  border: 1px solid var(--error);
+  color: var(--error);
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+@media (max-width: 1024px) {
+  .main-container {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 20px;
+  }
+
+  .form-section,
+  .preview-section {
+    max-height: none;
+    overflow: visible;
+  }
+}
