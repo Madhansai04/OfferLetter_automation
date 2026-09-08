@@ -257,24 +257,96 @@ function addOptionalBenefitFootnotes(xml, notes) {
 }
 
 /**
- * Moves the header's "Date:" left.
- *
- * The Ref and Date share one paragraph, with the Date positioned by a tab
- * stop. The template sets that stop at 7554 twips — 13.3cm, about three
- * quarters of the way across the text area — which leaves the Date stranded
- * near the right margin. Ganit asked for it closer to the Ref, so the stop
- * moves to 5500 twips (9.7cm, just past halfway), still clear of the
- * reference number.
+ * Width of the text area, in twips: the page less its side margins. Read from
+ * the body's section properties so it follows the template's own page setup.
  */
-function moveHeaderDateLeft(xml) {
+function documentTextWidth(xml) {
+  const FALLBACK = 9947; // the template's own A4-ish page, 11930 - 1275 - 708
+
+  const sections = [...xml.matchAll(/<w:sectPr[\s\S]*?<\/w:sectPr>/g)];
+  const section = sections[sections.length - 1];
+  if (!section) return FALLBACK;
+
+  const page = section[0].match(/<w:pgSz\b[^>]*\bw:w="(\d+)"/);
+  const margins = section[0].match(/<w:pgMar\b[^>]*>/);
+  if (!page || !margins) return FALLBACK;
+
+  const left = Number((margins[0].match(/\bw:left="(\d+)"/) || [])[1] || 0);
+  const right = Number((margins[0].match(/\bw:right="(\d+)"/) || [])[1] || 0);
+  const width = Number(page[1]) - left - right;
+
+  return width > 0 ? width : FALLBACK;
+}
+
+/**
+ * Pins the header's "Date:" to the right margin.
+ *
+ * Ref and Date share one paragraph, separated by a tab. The template's stop is
+ * a left tab, and merging the paragraph's runs (needed because {year} and
+ * {date} are split across several) moves every piece of text ahead of the tab
+ * element, so the Date ends up placed by the literal spaces the template
+ * padded it with — leaving it adrift near the middle of the line.
+ *
+ * The paragraph is therefore rebuilt as three runs — the reference, the tab,
+ * the date — against a right-aligned stop at the right margin, which ends the
+ * date flush with the edge of the text area whatever its length.
+ */
+function alignHeaderDateRight(xml) {
+  const rightEdge = documentTextWidth(xml);
+
   return xml.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (paragraph) => {
     const text = paragraph.replace(/<[^>]+>/g, '');
     if (!/Ref:/.test(text) || !/Date:/.test(text)) return paragraph;
 
-    return paragraph.replace(
-      /(<w:tab\b[^>]*w:pos=")\d+(")/,
-      (_match, before, after) => `${before}5500${after}`
-    );
+    const splitAt = text.indexOf('Date:');
+    const reference = text.slice(0, splitAt).trim();
+    const date = text.slice(splitAt).trim();
+    if (!reference || !date) return paragraph;
+
+    // Text is taken from the XML, so it is already escaped.
+    const runProps =
+      (paragraph.match(/<w:r(?:\s[^>]*)?>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/) || ['', ''])[1];
+
+    const tabs = `<w:tabs><w:tab w:val="right" w:pos="${rightEdge}"/></w:tabs>`;
+    let pPr = (paragraph.match(/<w:pPr>[\s\S]*?<\/w:pPr>/) || ['<w:pPr></w:pPr>'])[0];
+    pPr = /<w:tabs>/.test(pPr)
+      ? pPr.replace(/<w:tabs>[\s\S]*?<\/w:tabs>/, tabs)
+      : pPr.replace('<w:pPr>', `<w:pPr>${tabs}`);
+
+    return `<w:p>${pPr}`
+      + `<w:r>${runProps}<w:t xml:space="preserve">${reference}</w:t></w:r>`
+      + `<w:r>${runProps}<w:tab/></w:r>`
+      + `<w:r>${runProps}<w:t xml:space="preserve">${date}</w:t></w:r>`
+      + '</w:p>';
+  });
+}
+
+/**
+ * Stops the phone number wrapping onto a second line.
+ *
+ * The Contact cell is 2504 twips wide but its value is indented 722 twips from
+ * the left, which leaves under 1800 twips — narrower than a 13-digit number at
+ * the cell's 13pt semibold. Word then breaks the number mid-way.
+ *
+ * Clearing the indent and centring the value instead gives it the full cell
+ * width, which is room for any E.164 number, and matches the centred "Contact"
+ * heading above it. Run while the cell still holds its {contact_no}
+ * placeholder, so the paragraph can be identified without guessing at values.
+ */
+function widenContactCell(xml) {
+  return xml.replace(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g, (paragraph) => {
+    const text = paragraph.replace(/<[^>]+>/g, '');
+    if (!/\{\s*contact_no\s*\}/i.test(text)) return paragraph;
+
+    const pPr = (paragraph.match(/<w:pPr>[\s\S]*?<\/w:pPr>/) || [])[0];
+    if (!pPr) return paragraph;
+
+    let updated = pPr.replace(/<w:ind\b[^>]*\/>/, '<w:ind w:left="0" w:right="0"/>');
+    if (!/<w:jc\b/.test(updated)) {
+      updated = updated.replace(/(<w:ind\b[^>]*\/>)/, '$1<w:jc w:val="center"/>');
+    }
+
+    return paragraph.replace(pPr, updated);
   });
 }
 
@@ -493,6 +565,10 @@ export async function generateOfferDocx(formData, breakdown) {
     (_match, before, after) => `${before}${escapeXml(formatDateLongHyphen(formData.doj))}${after}`
   );
 
+  // Before the values go in: the Contact cell's layout is fixed while its
+  // paragraph can still be found by its placeholder.
+  xml = widenContactCell(xml);
+
   xml = fillNamedPlaceholders(xml, {
     year: today.getFullYear(),
     date: formatDateSlashes(today),
@@ -570,10 +646,11 @@ export async function generateOfferDocx(formData, breakdown) {
     city: String(formData.posting || '').trim()
   });
 
+  xml = alignHeaderDateRight(xml);
+
   // The confidentiality line is hardcoded once per page in the body, so an
   // overflow page would be left without it. Move it into the real footer,
   // where Word repeats it on every page and numbers it correctly.
-  xml = moveHeaderDateLeft(xml);
   xml = removeHardcodedPageFooters(xml);
 
   const footerPart = archive[FOOTER_PART];

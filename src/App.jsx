@@ -101,12 +101,18 @@ export default function App() {
     <div className="app">
       <header className="header">
         <img src="/LOGO.png" alt="Ganit" className="logo" onError={(e) => { e.target.style.display = 'none'; }} />
-        <h1>Offer Letter Generator</h1>
+        <div className="header-titles">
+          <h1>Offer Letter Generator</h1>
+          <p>Build a candidate offer and preview it instantly</p>
+        </div>
       </header>
 
       <div className="main-container">
         <div className="form-section">
-          <h2>Fill Details</h2>
+          <div className="section-heading">
+            <h2>Fill Details</h2>
+            <span className="section-caption">All fields marked * are required</span>
+          </div>
           {error && <div className="error-message">{error}</div>}
 
           <OfferLetterForm
@@ -116,6 +122,10 @@ export default function App() {
 
           {breakdown && (
             <div className="ctc-summary">
+              <div className="ctc-summary-head">
+                <span>Compensation Summary</span>
+                <span className="ctc-live-badge">Live</span>
+              </div>
               <div className="ctc-summary-row">
                 <span>Fixed Pay</span>
                 <span>{formatCurrency(breakdown.fixedPay.yearly)}</span>
@@ -157,11 +167,18 @@ export default function App() {
         </div>
 
         <div className="preview-section">
-          <h2>Preview</h2>
+          <div className="section-heading">
+            <h2>Preview</h2>
+            <span className="section-caption">Updates as you type</span>
+          </div>
           {breakdown ? (
             <PDFPreview formData={formData} breakdown={breakdown} />
           ) : (
-            <div className="preview-placeholder">Fill form to see preview</div>
+            <div className="preview-placeholder">
+              <span className="preview-placeholder-icon" aria-hidden="true">📄</span>
+              <strong>Nothing to preview yet</strong>
+              <span>Enter the fixed pay to generate a live offer preview.</span>
+            </div>
           )}
         </div>
       </div>
