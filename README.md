@@ -2,9 +2,48 @@
 
 A small, fully client-side tool for producing Ganit offer letters. Fill in a
 candidate's details, watch the compensation breakdown update as you type, and
-download a completed Word document. No backend, no server, no database, and
-nothing to install beyond Node.
+download a completed Word document. No backend, no server, no database.
+It ships to HR as one double-clickable `.html` file — see **Shipping it to
+HR** below.
 
+## Shipping it to HR
+
+The app is handed over as a single self-contained `.html` file. There is no
+server, no install and no Node on the target machine — the JavaScript, CSS,
+logo and the .docx template are all inlined into the page as data: URIs, so
+it runs straight off `file://`.
+
+```bash
+npm run package
+```
+
+That produces `release/`:
+
+| File | Purpose |
+| --- | --- |
+| `Ganit Offer Letter.html` | the entire app, ~375 KB |
+| `Setup.ps1` | run once per machine |
+| `READ ME FIRST.txt` | instructions for whoever installs it |
+
+Copy that folder to the machine and right-click `Setup.ps1` → **Run with**
+**PowerShell**. It installs to `%LOCALAPPDATA%GanitOffer Letter Generator`
+(no admin rights), rebuilds the Ganit logo into an `.ico`, and creates Desktop
+and Start-menu shortcuts that launch Edge with `--app=`, giving a plain window
+with no address bar or tabs. To remove it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Setup.ps1 -Uninstall
+```
+
+### Where letters get saved
+
+`downloadBlob.js` tries `showSaveFilePicker()` first so HR can choose a folder
+per letter, and falls back to a normal download if the browser refuses it —
+which it may, since a `file://` page has an opaque origin. Where the fallback
+is used, turning on **Ask me what to do with each download** in Edge's
+download settings gives the same prompt.
+
+## Developing
 ## Running locally
 
 ```bash
@@ -17,9 +56,9 @@ and click **Download Offer Letter**.
 
 ## How it works
 
-- `public/offer-letter-template.docx` — the Ganit offer letter template,
+- `src/assets/offer-letter-template.docx` — the Ganit offer letter template,
   used exactly as supplied.
-- `src/utils/docxGenerator.js` — fetches that template in the browser,
+- `src/utils/docxGenerator.js` — reads that template in the browser,
   rewrites `word/document.xml`, and repackages the archive. Headers,
   footers, images, fonts, styles and page layout carry through untouched,
   because the original file is edited rather than a new document being

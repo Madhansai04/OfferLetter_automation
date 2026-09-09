@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logoUrl from './assets/LOGO.png';
 import OfferLetterForm from './components/OfferLetterForm';
 import PDFPreview from './components/PDFPreview';
 import { generateOfferDocx } from './utils/docxGenerator';
@@ -100,7 +101,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <img src="/LOGO.png" alt="Ganit" className="logo" onError={(e) => { e.target.style.display = 'none'; }} />
+        <img src={logoUrl} alt="Ganit" className="logo" onError={(e) => { e.target.style.display = 'none'; }} />
         <div className="header-titles">
           <h1>Offer Letter Generator</h1>
           <p>Build a candidate offer and preview it instantly</p>

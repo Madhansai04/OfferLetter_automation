@@ -26,3 +26,6 @@ ruvector.db
 *.njsproj
 *.sln
 *.sw?
+
+# Handover bundle produced by "npm run package"
+release

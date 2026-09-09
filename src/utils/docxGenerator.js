@@ -4,8 +4,8 @@ import {
   numberToWordsTitleCase
 } from './formatters';
 import { downloadBlob } from './downloadBlob';
+import { loadTemplateBytes } from './loadTemplate';
 
-const TEMPLATE_URL = '/offer-letter-template.docx';
 const DOCUMENT_PART = 'word/document.xml';
 const FOOTER_PART = 'word/footer1.xml';
 
@@ -530,17 +530,13 @@ function restoreOfferSentenceEmphasis(xml, { role, compensationPhrase, joiningDa
 /**
  * Fills the Ganit offer letter Word template with the form's values.
  *
- * The template's own .docx is downloaded, its document part rewritten, and the
+ * The template's own .docx is read, its document part rewritten, and the
  * package zipped back up. Headers, footers, images, fonts, styles and page
  * layout are carried through untouched, because the original file is edited
  * rather than a new document being built.
  */
 export async function generateOfferDocx(formData, breakdown) {
-  const response = await fetch(TEMPLATE_URL);
-  if (!response.ok) {
-    throw new Error(`Could not load the Word template (HTTP ${response.status})`);
-  }
-  const archive = unzipSync(new Uint8Array(await response.arrayBuffer()));
+  const archive = unzipSync(await loadTemplateBytes());
 
   const documentPart = archive[DOCUMENT_PART];
   if (!documentPart) {
@@ -664,5 +660,5 @@ export async function generateOfferDocx(formData, breakdown) {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
 
-  downloadBlob(blob, `offer-letter-${formData.name.replace(/\s+/g, '-')}.docx`);
+  await downloadBlob(blob, `offer-letter-${formData.name.replace(/\s+/g, '-')}.docx`);
 }
