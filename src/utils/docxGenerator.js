@@ -351,6 +351,38 @@ function widenContactCell(xml) {
 }
 
 /**
+ * Drops the "Retention" clause (numbered 8 in Annexure 1) when no retention
+ * amount was entered.
+ *
+ * The clause is a Heading4 paragraph reading "Retention", followed by its
+ * intro sentence and four bullets. It is the last item of the numbered list,
+ * so removing it needs no renumbering — Word numbers the remaining clauses
+ * 1-7 by itself. The run of paragraphs is ended by the first blank one, which
+ * is left in place as the spacing before whatever follows.
+ */
+function removeRetentionClause(xml) {
+  const paragraphs = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)];
+
+  const textOf = (paragraph) =>
+    [...paragraph.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+      .map((m) => m[1]).join('').trim();
+
+  const start = paragraphs.findIndex(
+    (m) => /<w:pStyle w:val="Heading4"\/>/.test(m[0]) && textOf(m[0]) === 'Retention'
+  );
+  if (start === -1) return xml;
+
+  let end = start;
+  while (end + 1 < paragraphs.length && textOf(paragraphs[end + 1][0]) !== '') {
+    end += 1;
+  }
+
+  const from = paragraphs[start].index;
+  const to = paragraphs[end].index + paragraphs[end][0].length;
+  return xml.slice(0, from) + xml.slice(to);
+}
+
+/**
  * Removes the hardcoded "Private and Confidential | Page N of 4" paragraphs
  * from the body.
  *
@@ -626,6 +658,12 @@ export async function generateOfferDocx(formData, breakdown) {
     ...(relocationAmount > 0 ? [RELOCATION_FOOTNOTE] : []),
     ...(joiningBonusAmount > 0 ? [JOINING_BONUS_FOOTNOTE] : [])
   ]);
+
+  // Annexure 1's retention clause only applies when retention pay is part of
+  // the package, so it is dropped from the terms when the amount is zero.
+  if (retentionAmount <= 0) {
+    xml = removeRetentionClause(xml);
+  }
 
   xml = fillInsuranceAmounts(xml, [
     formatNumber(breakdown.insurance.medical),
