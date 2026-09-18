@@ -351,8 +351,7 @@ function widenContactCell(xml) {
 }
 
 /**
- * Drops the "Retention" clause (numbered 8 in Annexure 1) when no retention
- * amount was entered.
+ * Drops the "Retention" clause (numbered 8 in Annexure 1) from every letter.
  *
  * The clause is a Heading4 paragraph reading "Retention", followed by its
  * intro sentence and four bullets. It is the last item of the numbered list,
@@ -659,11 +658,9 @@ export async function generateOfferDocx(formData, breakdown) {
     ...(joiningBonusAmount > 0 ? [JOINING_BONUS_FOOTNOTE] : [])
   ]);
 
-  // Annexure 1's retention clause only applies when retention pay is part of
-  // the package, so it is dropped from the terms when the amount is zero.
-  if (retentionAmount <= 0) {
-    xml = removeRetentionClause(xml);
-  }
+  // Annexure 1's retention clause is no longer issued with the offer, so it
+  // comes out of the terms regardless of whether retention pay was entered.
+  xml = removeRetentionClause(xml);
 
   xml = fillInsuranceAmounts(xml, [
     formatNumber(breakdown.insurance.medical),
