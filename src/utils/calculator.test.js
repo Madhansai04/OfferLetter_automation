@@ -42,6 +42,61 @@ describe('calculateCTCBreakdown — reference case (4.5L fixed + 50k variable)',
   });
 });
 
+/**
+ * Workbook case: stored values from "CTC Calculator Final 2.xlsm" (new PF
+ * policy) for Fixed Salary 3,50,000 | Variable 50,000 | Retention 0.
+ */
+describe('calculateCTCBreakdown — matches the workbook (3.5L fixed + 50k variable)', () => {
+  const r = calculateCTCBreakdown(350000, 50000, 0, 0);
+
+  it('matches Basic (D8), HRA (D9) and Conveyance (D10)', () => {
+    expect(r.fixed.basic.monthly).toBeCloseTo(13371.832455347634, 6);
+    expect(r.fixed.hra.monthly).toBeCloseTo(6685.916227673817, 6);
+    expect(r.fixed.conveyance.monthly).toBeCloseTo(6685.916227673817, 6);
+  });
+
+  it('matches PF - Employer (D11)', () => {
+    expect(r.statutory.pf.monthly).toBeCloseTo(1738.3382191951923, 6);
+  });
+
+  it('matches Gratuity (D12)', () => {
+    expect(r.statutory.gratuity.monthly).toBeCloseTo(684.6635367762129, 6);
+  });
+
+  it('matches Total Fixed (D13) and CTC (E19)', () => {
+    expect(r.fixed.total.monthly + r.statutory.total.monthly).toBeCloseTo(29166.66666666667, 6);
+    expect(r.totalCTC).toBe(400000);
+  });
+});
+
+/**
+ * CTC 4,50,000 with 50,000 variable => Fixed Salary (H5) 4,00,000. Expected
+ * values are the workbook's formulas evaluated after its Goal Seek.
+ */
+describe('calculateCTCBreakdown — CTC 4.5L (4L fixed + 50k variable)', () => {
+  const r = calculateCTCBreakdown(400000, 50000, 0, 0);
+
+  it('matches Basic, HRA and Conveyance', () => {
+    expect(r.fixed.basic.monthly).toBeCloseTo(15282.094234683005, 6);
+    expect(r.fixed.hra.monthly).toBeCloseTo(7641.047117341503, 6);
+    expect(r.fixed.conveyance.monthly).toBeCloseTo(7641.047117341503, 6);
+  });
+
+  it('matches PF - Employer under the new rule', () => {
+    expect(r.statutory.pf.monthly).toBeCloseTo(1986.6722505087905, 6);
+  });
+
+  it('matches Gratuity', () => {
+    expect(r.statutory.gratuity.monthly).toBeCloseTo(782.4726134585288, 6);
+  });
+
+  it('reconciles to a CTC of 4,50,000', () => {
+    expect(r.fixed.total.yearly + r.statutory.total.yearly).toBeCloseTo(400000, 4);
+    expect(r.totalCTC).toBe(450000);
+    expect(r.verification.reconciles).toBe(true);
+  });
+});
+
 describe('PF formula boundaries', () => {
   it('caps the 12% component at 3000 and adds flat 250 for high Basic', () => {
     const r = calculateCTCBreakdown(4800000, 200000, 0, 0);

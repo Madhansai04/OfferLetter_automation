@@ -1,15 +1,15 @@
 /**
  * CTC BREAKDOWN — ported from "CTC Calculator Final 2.xlsm"
  *
- * Verified against the workbook's own stored values (CTC 5,00,000 /
- * Variable 50,000 / Retention 0) to full floating-point precision:
+ * Verified against the workbook's own stored values (Fixed 3,50,000 /
+ * Variable 50,000 / Retention 0 => CTC 4,00,000):
  *
- *   Basic monthly     17,334.859154929574
- *   HRA monthly        8,667.429577464787   = Basic * 50%
- *   Conveyance monthly 8,667.429577464787   = Basic * 50%
- *   PF monthly         (derived — cap 3000, flat add-on 250 when Basic ≥ 25,000)
- *   Gratuity monthly     880.2816901408449
- *   Total fixed annual 4,50,000
+ *   Basic monthly     13,371.832455347634
+ *   HRA monthly        6,685.916227673817   = Basic * 50%
+ *   Conveyance monthly 6,685.916227673817   = Basic * 50%
+ *   PF monthly         1,738.3382191951923  (cap 3000, flat add-on 250 when Basic ≥ 25,000)
+ *   Gratuity monthly     684.6635367762129
+ *   Total fixed annual 3,50,000
  *
  * Excel cell references are noted against each formula.
  */
