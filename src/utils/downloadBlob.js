@@ -11,6 +11,9 @@
  * A cancelled picker is NOT a failure. Falling back there would save the file
  * anyway — the opposite of what the user just asked for — so AbortError
  * returns quietly and nothing is written.
+ *
+ * Resolves true once the file has been handed over, false if the user
+ * cancelled the picker.
  */
 export async function downloadBlob(blob, filename) {
   if (typeof window.showSaveFilePicker === 'function') {
@@ -27,9 +30,9 @@ export async function downloadBlob(blob, filename) {
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      return;
+      return true;
     } catch (error) {
-      if (error.name === 'AbortError') return;
+      if (error.name === 'AbortError') return false;
       // Anything else — SecurityError on an opaque origin, a lost user
       // gesture, an unsupported build — means the picker is unusable here.
       // Fall through to the anchor, which works everywhere.
@@ -56,4 +59,5 @@ export async function downloadBlob(blob, filename) {
   document.body.removeChild(link);
 
   setTimeout(() => URL.revokeObjectURL(url), 0);
+  return true;
 }

@@ -695,5 +695,5 @@ export async function generateOfferDocx(formData, breakdown) {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
 
-  await downloadBlob(blob, `offer-letter-${formData.name.replace(/\s+/g, '-')}.docx`);
+  return downloadBlob(blob, `offer-letter-${formData.name.replace(/\s+/g, '-')}.docx`);
 }

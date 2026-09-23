@@ -597,6 +597,149 @@ body {
   font-weight: 700;
 }
 
+/* ---------- Header navigation ---------- */
+
+.header-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+}
+
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.nav-tab:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+}
+
+.nav-tab.active {
+  background: white;
+  color: var(--primary);
+}
+
+.nav-tab:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+.nav-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--secondary);
+  color: white;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---------- Offer Details ---------- */
+
+.offers-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 36px 40px 56px;
+}
+
+.offers-section {
+  background: white;
+  padding: 28px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.offers-section h2 {
+  color: #111827;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.offer-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+
+.offer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.offer-table th {
+  background: var(--light);
+  color: var(--primary-deep);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+  padding: 11px 12px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.offer-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+
+.offer-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.offer-table tbody tr:hover {
+  background: var(--gray-50);
+}
+
+.offer-table .nowrap {
+  white-space: nowrap;
+}
+
+.offer-table-control {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+  font-size: 13px;
+  color: #111827;
+  cursor: pointer;
+}
+
+.offer-table-control:hover {
+  border-color: var(--primary-medium);
+}
+
+.offer-table-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26, 0, 217, 0.12);
+}
+
+.status-offered { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.status-joined { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+.status-declined { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.status-withdrew { background: #f3f4f6; border-color: #d1d5db; color: #4b5563; }
+
 /* Scrollbars for the two scrolling panels. */
 .form-section::-webkit-scrollbar,
 .preview-section::-webkit-scrollbar {
@@ -622,12 +765,31 @@ body {
     max-height: none;
     overflow: visible;
   }
+
+  .offers-container {
+    padding: 24px 20px 40px;
+  }
 }
 
 @media (max-width: 640px) {
   .header {
     padding: 16px 20px;
     gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .header-nav {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .nav-tab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .offers-section {
+    padding: 20px 16px;
   }
 
   .field-grid {
