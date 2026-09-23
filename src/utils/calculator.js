@@ -7,7 +7,7 @@
  *   Basic monthly     17,334.859154929574
  *   HRA monthly        8,667.429577464787   = Basic * 50%
  *   Conveyance monthly 8,667.429577464787   = Basic * 50%
- *   PF monthly         1,950
+ *   PF monthly         (derived — cap 3000, flat add-on 250 when Basic ≥ 25,000)
  *   Gratuity monthly     880.2816901408449
  *   Total fixed annual 4,50,000
  *
@@ -28,10 +28,19 @@ function ctcFromFixedPay(fixedPay, variable, retention) {
   return fixedPay + variable + retention;
 }
 
-// Excel D11: IF(($D$8*12%)>=1800,1800,$D$8*12%) + IF($D$8>=15000,150,($D$8*1%))
+const PF_RATE = 0.12;
+const PF_CAP = 3000;
+const PF_BASIC_THRESHOLD = 25000;
+const PF_FLAT_ADDON = 250;
+const PF_ADDON_RATE = 0.01;
+
+// IF(($D$8*12%)>=PF_CAP, PF_CAP, $D$8*12%)
+//   + IF($D$8>=PF_BASIC_THRESHOLD, PF_FLAT_ADDON, $D$8*1%)
 function pfMonthlyFromBasic(basicMonthly) {
-  const capped = Math.min(basicMonthly * 0.12, 1800);
-  const additional = basicMonthly >= 15000 ? 150 : basicMonthly * 0.01;
+  const capped = Math.min(basicMonthly * PF_RATE, PF_CAP);
+  const additional = basicMonthly >= PF_BASIC_THRESHOLD
+    ? PF_FLAT_ADDON
+    : basicMonthly * PF_ADDON_RATE;
   return capped + additional;
 }
 

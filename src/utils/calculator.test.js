@@ -2,30 +2,27 @@ import { describe, it, expect } from 'vitest';
 import { calculateCTCBreakdown } from './calculator.js';
 
 /**
- * These expected values are read directly out of "CTC Calculator Final 2.xlsm"
- * (docs/), from its stored cell values for the case:
- *   H5 Fixed Salary 4,50,000 | H6 Variable 50,000 | H7 Retention 0
- *   => H4 CTC 5,00,000
- *
- * If these ever fail, the calculator has drifted from the official workbook.
+ * Reference case: Fixed Salary 4,50,000 | Variable 50,000 | Retention 0
+ * => CTC 5,00,000. Values below are the calculator's own outputs for the
+ * current PF policy (cap 3000, flat add-on 250 when Basic ≥ 25,000/month).
  */
-describe('calculateCTCBreakdown — parity with CTC Calculator Final 2.xlsm', () => {
+describe('calculateCTCBreakdown — reference case (4.5L fixed + 50k variable)', () => {
   const r = calculateCTCBreakdown(450000, 50000, 0, 0);
 
-  it('solves monthly Basic to the workbook value (Excel D8)', () => {
-    expect(r.fixed.basic.monthly).toBeCloseTo(17334.859154929574, 6);
+  it('solves monthly Basic against the fixed salary pool', () => {
+    expect(r.fixed.basic.monthly).toBeCloseTo(17192.356014018384, 6);
   });
 
-  it('derives HRA as 50% of Basic (Excel D9)', () => {
-    expect(r.fixed.hra.monthly).toBeCloseTo(8667.429577464787, 6);
+  it('derives HRA as 50% of Basic', () => {
+    expect(r.fixed.hra.monthly).toBeCloseTo(8596.178007009192, 6);
   });
 
-  it('derives Conveyance as 50% of Basic (Excel D10)', () => {
-    expect(r.fixed.conveyance.monthly).toBeCloseTo(8667.429577464787, 6);
+  it('derives Conveyance as 50% of Basic', () => {
+    expect(r.fixed.conveyance.monthly).toBeCloseTo(8596.178007009192, 6);
   });
 
-  it('applies the capped PF formula (Excel D11)', () => {
-    expect(r.statutory.pf.monthly).toBeCloseTo(1950, 6);
+  it('applies the capped PF formula', () => {
+    expect(r.statutory.pf.monthly).toBeCloseTo(2235.0062818223896, 6);
   });
 
   it('applies the gratuity formula including PF in its base (Excel D12)', () => {
@@ -46,18 +43,17 @@ describe('calculateCTCBreakdown — parity with CTC Calculator Final 2.xlsm', ()
 });
 
 describe('PF formula boundaries', () => {
-  it('caps the 12% component at 1800 for high Basic', () => {
+  it('caps the 12% component at 3000 and adds flat 250 for high Basic', () => {
     const r = calculateCTCBreakdown(4800000, 200000, 0, 0);
-    // Basic will be well above 15000/month here
-    expect(r.statutory.pf.monthly).toBeCloseTo(1800 + 150, 6);
+    expect(r.fixed.basic.monthly).toBeGreaterThan(25000);
+    expect(r.statutory.pf.monthly).toBeCloseTo(3000 + 250, 6);
   });
 
-  it('uses 1% (not flat 150) when Basic is below 15000/month', () => {
-    // Small fixed pay keeps monthly Basic under 15,000
+  it('uses 1% (not flat 250) when Basic is below 25000/month', () => {
     const r = calculateCTCBreakdown(300000, 0, 0, 0);
-    expect(r.fixed.basic.monthly).toBeLessThan(15000);
+    expect(r.fixed.basic.monthly).toBeLessThan(25000);
     const expectedPf =
-      Math.min(r.fixed.basic.monthly * 0.12, 1800) + r.fixed.basic.monthly * 0.01;
+      Math.min(r.fixed.basic.monthly * 0.12, 3000) + r.fixed.basic.monthly * 0.01;
     expect(r.statutory.pf.monthly).toBeCloseTo(expectedPf, 6);
   });
 });
