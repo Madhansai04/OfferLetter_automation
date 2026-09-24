@@ -110,7 +110,7 @@ export default function App() {
       const saved = await generateOfferDocx(formData, breakdown);
       // Only a letter that actually went out is recorded; cancelling the
       // save dialog leaves the register untouched.
-      if (saved) commitOfferRecords(addOfferRecord(offerRecords, formData));
+      if (saved) commitOfferRecords(addOfferRecord(offerRecords, { ...formData, ctc: breakdown?.totalCTC }));
     } catch (err) {
       setError('Error generating Word document: ' + err.message);
       console.error(err);

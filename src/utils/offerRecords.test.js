@@ -38,6 +38,11 @@ describe('addOfferRecord', () => {
     expect(r.id).toBeTruthy();
   });
 
+  it('records the offered CTC when one is given', () => {
+    expect(addOfferRecord([], { ...form, ctc: 1250000 })[0].ctc).toBe(1250000);
+    expect(addOfferRecord([], form)[0].ctc).toBeNull();
+  });
+
   it('puts the newest offer first', () => {
     const first = addOfferRecord([], form);
     const both = addOfferRecord(first, { ...form, email: 'ben@example.com', name: 'Ben' });

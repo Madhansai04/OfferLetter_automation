@@ -11,7 +11,8 @@ const record = {
   email: 'asha@example.com',
   doj: '2026-10-05',
   status: 'Joined',
-  recruiter: 'Surya GM'
+  recruiter: 'Surya GM',
+  ctc: 1250000
 };
 
 describe('OfferDetailsTable', () => {
@@ -20,7 +21,7 @@ describe('OfferDetailsTable', () => {
   it('shows the columns in the requested order', () => {
     const headers = [...html.matchAll(/<th>(.*?)<\/th>/g)].map((m) => m[1]);
     expect(headers).toEqual([
-      'Date of offer released', 'Candidate Name', 'Designation', 'Contact Number',
+      'Date of offer released', 'Candidate Name', 'Designation', 'Offered CTC', 'Contact Number',
       'Email ID', 'Date of Joining', 'Status', 'Recruiter Name'
     ]);
   });
@@ -39,6 +40,30 @@ describe('OfferDetailsTable', () => {
     }
     expect(html).toContain('<option value="Joined" selected="">');
     expect(html).toContain('<option value="Surya GM" selected="">');
+  });
+
+  it('shows the offered CTC in an editable field, empty for offers recorded before it was tracked', () => {
+    expect(html).toMatch(/<input type="text"[^>]*aria-label="Offered CTC for Asha Rao"[^>]*value="₹12,50,000"/);
+    const old = renderToStaticMarkup(<OfferDetailsTable records={[{ ...record, ctc: undefined }]} onUpdate={() => {}} />);
+    expect(old).toMatch(/placeholder="Enter CTC"[^>]*value=""/);
+  });
+
+  it('colour-codes each row by its status', () => {
+    expect(html).toContain('<tr class="row-status-joined">');
+  });
+
+  it('counts offers still pending and each outcome above the table', () => {
+    const records = [
+      record,
+      { ...record, id: 'b', status: 'Joined' },
+      { ...record, id: 'c', status: 'Declined' },
+      { ...record, id: 'd', status: 'Offered' }
+    ];
+    const out = renderToStaticMarkup(<OfferDetailsTable records={records} onUpdate={() => {}} />);
+    const counts = Object.fromEntries(
+      [...out.matchAll(/offer-stat-label">(.*?)<\/span><span class="offer-stat-count">(\d+)/g)].map((m) => [m[1], Number(m[2])])
+    );
+    expect(counts).toEqual({ 'Total Offered': 1, Joined: 2, Declined: 1, Withdrew: 0 });
   });
 
   it('explains the empty state', () => {

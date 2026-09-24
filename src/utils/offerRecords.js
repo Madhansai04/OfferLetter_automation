@@ -63,7 +63,8 @@ export function addOfferRecord(records, formData, releasedOn = new Date()) {
     designation: String(formData.role || '').trim(),
     phone: String(formData.phone || '').trim(),
     email,
-    doj: formData.doj || ''
+    doj: formData.doj || '',
+    ctc: Number(formData.ctc) || null
   };
 
   const existing = records.find((r) => r.email.toLowerCase() === email.toLowerCase());
