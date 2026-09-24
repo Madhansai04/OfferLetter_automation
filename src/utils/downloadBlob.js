@@ -12,20 +12,25 @@
  * anyway — the opposite of what the user just asked for — so AbortError
  * returns quietly and nothing is written.
  *
+ * `fileType` describes the file for the picker's type filter; it defaults to
+ * a Word document, which is what the offer letters are.
+ *
  * Resolves true once the file has been handed over, false if the user
  * cancelled the picker.
  */
-export async function downloadBlob(blob, filename) {
+const WORD_FILE = {
+  description: 'Word document',
+  accept: {
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  },
+};
+
+export async function downloadBlob(blob, filename, fileType = WORD_FILE) {
   if (typeof window.showSaveFilePicker === 'function') {
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName: filename,
-        types: [{
-          description: 'Word document',
-          accept: {
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-          },
-        }],
+        types: [fileType],
       });
       const writable = await handle.createWritable();
       await writable.write(blob);

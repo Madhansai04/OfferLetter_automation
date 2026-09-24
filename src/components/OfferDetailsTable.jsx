@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { OFFER_STATUSES, RECRUITERS } from '../utils/offerRecords';
 import { formatCurrency, formatDateSlashes } from '../utils/formatters';
+import { buildOfferWorkbook, XLSX_MIME } from '../utils/offerExport';
+import { downloadBlob } from '../utils/downloadBlob';
 
 // Filled in from the letter on download, but HR can correct it. Shows the
 // formatted amount at rest and the plain number while being edited; the
@@ -30,6 +32,18 @@ function CtcInput({ value, name, onCommit }) {
       }}
     />
   );
+}
+
+// Exports exactly the rows on screen, so HR can filter first and export that.
+function exportToExcel(records) {
+  const today = new Date();
+  const stamp = [today.getDate(), today.getMonth() + 1, today.getFullYear()]
+    .map((n) => String(n).padStart(2, '0')).join('-');
+  const blob = new Blob([buildOfferWorkbook(records)], { type: XLSX_MIME });
+  return downloadBlob(blob, `Offer Details ${stamp}.xlsx`, {
+    description: 'Excel workbook',
+    accept: { [XLSX_MIME]: ['.xlsx'] }
+  });
 }
 
 const EMPTY_FILTERS = { search: '', status: '', recruiter: '', from: '', to: '' };
@@ -147,6 +161,14 @@ export default function OfferDetailsTable({ records, onUpdate }) {
             Clear filters
           </button>
         )}
+        <button
+          type="button"
+          className="offer-export"
+          disabled={visible.length === 0}
+          onClick={() => exportToExcel(visible).catch((err) => console.error(err))}
+        >
+          Export to Excel{isFiltered ? ` (${visible.length})` : ''}
+        </button>
       </div>
 
       <div className="offer-table-wrapper">
